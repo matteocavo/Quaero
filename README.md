@@ -1,3 +1,5 @@
+<img src="https://matteocavo.github.io/images/quaero.png">
+
 # Quaero
 
 Quaero is a question-driven analytics pipeline that converts raw datasets
