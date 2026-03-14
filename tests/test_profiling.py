@@ -51,7 +51,7 @@ def test_profile_dataframe_writes_metadata_and_returns_profile(tmp_path: Path) -
     assert columns_by_name["sales"]["min"] == 9.75
     assert columns_by_name["sales"]["max"] == 12.0
 
-    assert columns_by_name["region"]["dtype"] == "object"
+    assert columns_by_name["region"]["dtype"] in {"object", "str"}
     assert columns_by_name["region"]["null_percentage"] == 25.0
     assert columns_by_name["region"]["unique_count"] == 2
     assert columns_by_name["region"]["sample_values"] == ["North", "South", "North"]

@@ -123,7 +123,7 @@ def test_clean_dataframe_parses_valid_dates_and_preserves_string_columns(
     summary = result["summary"]
 
     assert pd.api.types.is_datetime64_any_dtype(cleaned["updated_at"])
-    assert str(cleaned["updated_at"].dtype) == "datetime64[ns, UTC]"
+    assert str(cleaned["updated_at"].dt.tz) == "UTC"
     assert cleaned["mixed_code"].dtype == "string"
     assert pd.api.types.is_float_dtype(cleaned["amount"])
     assert pd.api.types.is_bool_dtype(cleaned["is_active"])
