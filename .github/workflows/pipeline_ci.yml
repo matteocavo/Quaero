@@ -1,0 +1,37 @@
+name: Pipeline CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest ruff
+
+      - name: Check formatting
+        run: ruff format --check .
+
+      - name: Lint code
+        run: ruff check .
+
+      - name: Run tests
+        run: pytest tests
+
+      - name: Validate pipeline modules
+        run: python -m compileall app api pipelines kpi_engine tests

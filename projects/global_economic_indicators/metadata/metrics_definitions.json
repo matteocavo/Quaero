@@ -1,0 +1,310 @@
+{
+  "metrics": [
+    {
+      "metric_name": "gdp_summary_stats_min_gdp",
+      "source_mart": "mart_gdp_summary_stats",
+      "source_column": "min_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "Minimum statistic for `gdp` (current_usd) across the full mart input.",
+      "default_aggregation": "min",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "gdp_summary_stats_max_gdp",
+      "source_mart": "mart_gdp_summary_stats",
+      "source_column": "max_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "Maximum statistic for `gdp` (current_usd) across the full mart input.",
+      "default_aggregation": "max",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "gdp_summary_stats_avg_gdp",
+      "source_mart": "mart_gdp_summary_stats",
+      "source_column": "avg_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "Average statistic for `gdp` (current_usd) across the full mart input.",
+      "default_aggregation": "average",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "gdp_summary_stats_median_gdp",
+      "source_mart": "mart_gdp_summary_stats",
+      "source_column": "median_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "Median statistic for `gdp` (current_usd) across the full mart input.",
+      "default_aggregation": "median",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "gdp_summary_stats_std_gdp",
+      "source_mart": "mart_gdp_summary_stats",
+      "source_column": "std_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "Standard deviation statistic for `gdp` (current_usd) across the full mart input.",
+      "default_aggregation": "std",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "gdp_summary_stats_p05_gdp",
+      "source_mart": "mart_gdp_summary_stats",
+      "source_column": "p05_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "5th percentile statistic for `gdp` (current_usd) across the full mart input.",
+      "default_aggregation": "p05",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "gdp_summary_stats_p25_gdp",
+      "source_mart": "mart_gdp_summary_stats",
+      "source_column": "p25_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "25th percentile statistic for `gdp` (current_usd) across the full mart input.",
+      "default_aggregation": "p25",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "gdp_summary_stats_p75_gdp",
+      "source_mart": "mart_gdp_summary_stats",
+      "source_column": "p75_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "75th percentile statistic for `gdp` (current_usd) across the full mart input.",
+      "default_aggregation": "p75",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "gdp_summary_stats_p95_gdp",
+      "source_mart": "mart_gdp_summary_stats",
+      "source_column": "p95_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "95th percentile statistic for `gdp` (current_usd) across the full mart input.",
+      "default_aggregation": "p95",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "gdp_trend_record_count",
+      "source_mart": "mart_gdp_trend",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of aligned records contributing to each yearly aggregate.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "gdp_trend_avg_gdp",
+      "source_mart": "mart_gdp_trend",
+      "source_column": "avg_gdp",
+      "source_metric_column": "gdp",
+      "formula_description": "Average of `gdp` (current_usd) aggregated by year.",
+      "default_aggregation": "average",
+      "unit": "current_usd"
+    },
+    {
+      "metric_name": "inflation_summary_stats_min_inflation",
+      "source_mart": "mart_inflation_summary_stats",
+      "source_column": "min_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "Minimum statistic for `inflation` (percent) across the full mart input.",
+      "default_aggregation": "min",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "inflation_summary_stats_max_inflation",
+      "source_mart": "mart_inflation_summary_stats",
+      "source_column": "max_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "Maximum statistic for `inflation` (percent) across the full mart input.",
+      "default_aggregation": "max",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "inflation_summary_stats_avg_inflation",
+      "source_mart": "mart_inflation_summary_stats",
+      "source_column": "avg_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "Average statistic for `inflation` (percent) across the full mart input.",
+      "default_aggregation": "average",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "inflation_summary_stats_median_inflation",
+      "source_mart": "mart_inflation_summary_stats",
+      "source_column": "median_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "Median statistic for `inflation` (percent) across the full mart input.",
+      "default_aggregation": "median",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "inflation_summary_stats_std_inflation",
+      "source_mart": "mart_inflation_summary_stats",
+      "source_column": "std_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "Standard deviation statistic for `inflation` (percent) across the full mart input.",
+      "default_aggregation": "std",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "inflation_summary_stats_p05_inflation",
+      "source_mart": "mart_inflation_summary_stats",
+      "source_column": "p05_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "5th percentile statistic for `inflation` (percent) across the full mart input.",
+      "default_aggregation": "p05",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "inflation_summary_stats_p25_inflation",
+      "source_mart": "mart_inflation_summary_stats",
+      "source_column": "p25_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "25th percentile statistic for `inflation` (percent) across the full mart input.",
+      "default_aggregation": "p25",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "inflation_summary_stats_p75_inflation",
+      "source_mart": "mart_inflation_summary_stats",
+      "source_column": "p75_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "75th percentile statistic for `inflation` (percent) across the full mart input.",
+      "default_aggregation": "p75",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "inflation_summary_stats_p95_inflation",
+      "source_mart": "mart_inflation_summary_stats",
+      "source_column": "p95_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "95th percentile statistic for `inflation` (percent) across the full mart input.",
+      "default_aggregation": "p95",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "inflation_trend_record_count",
+      "source_mart": "mart_inflation_trend",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of aligned records contributing to each yearly aggregate.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "inflation_trend_avg_inflation",
+      "source_mart": "mart_inflation_trend",
+      "source_column": "avg_inflation",
+      "source_metric_column": "inflation",
+      "formula_description": "Average of `inflation` (percent) aggregated by year.",
+      "default_aggregation": "average",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "metric_correlation_correlation",
+      "source_mart": "mart_metric_correlation",
+      "source_column": "correlation",
+      "source_metric_column": null,
+      "formula_description": "Pearson correlation coefficient between paired numeric metrics across the aligned integrated dataset.",
+      "default_aggregation": "none",
+      "unit": null
+    },
+    {
+      "metric_name": "unemployment_summary_stats_min_unemployment",
+      "source_mart": "mart_unemployment_summary_stats",
+      "source_column": "min_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "Minimum statistic for `unemployment` (percent) across the full mart input.",
+      "default_aggregation": "min",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "unemployment_summary_stats_max_unemployment",
+      "source_mart": "mart_unemployment_summary_stats",
+      "source_column": "max_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "Maximum statistic for `unemployment` (percent) across the full mart input.",
+      "default_aggregation": "max",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "unemployment_summary_stats_avg_unemployment",
+      "source_mart": "mart_unemployment_summary_stats",
+      "source_column": "avg_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "Average statistic for `unemployment` (percent) across the full mart input.",
+      "default_aggregation": "average",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "unemployment_summary_stats_median_unemployment",
+      "source_mart": "mart_unemployment_summary_stats",
+      "source_column": "median_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "Median statistic for `unemployment` (percent) across the full mart input.",
+      "default_aggregation": "median",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "unemployment_summary_stats_std_unemployment",
+      "source_mart": "mart_unemployment_summary_stats",
+      "source_column": "std_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "Standard deviation statistic for `unemployment` (percent) across the full mart input.",
+      "default_aggregation": "std",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "unemployment_summary_stats_p05_unemployment",
+      "source_mart": "mart_unemployment_summary_stats",
+      "source_column": "p05_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "5th percentile statistic for `unemployment` (percent) across the full mart input.",
+      "default_aggregation": "p05",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "unemployment_summary_stats_p25_unemployment",
+      "source_mart": "mart_unemployment_summary_stats",
+      "source_column": "p25_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "25th percentile statistic for `unemployment` (percent) across the full mart input.",
+      "default_aggregation": "p25",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "unemployment_summary_stats_p75_unemployment",
+      "source_mart": "mart_unemployment_summary_stats",
+      "source_column": "p75_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "75th percentile statistic for `unemployment` (percent) across the full mart input.",
+      "default_aggregation": "p75",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "unemployment_summary_stats_p95_unemployment",
+      "source_mart": "mart_unemployment_summary_stats",
+      "source_column": "p95_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "95th percentile statistic for `unemployment` (percent) across the full mart input.",
+      "default_aggregation": "p95",
+      "unit": "percent"
+    },
+    {
+      "metric_name": "unemployment_trend_record_count",
+      "source_mart": "mart_unemployment_trend",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of aligned records contributing to each yearly aggregate.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "unemployment_trend_avg_unemployment",
+      "source_mart": "mart_unemployment_trend",
+      "source_column": "avg_unemployment",
+      "source_metric_column": "unemployment",
+      "formula_description": "Average of `unemployment` (percent) aggregated by year.",
+      "default_aggregation": "average",
+      "unit": "percent"
+    }
+  ]
+}

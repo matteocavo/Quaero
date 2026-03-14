@@ -1,0 +1,94 @@
+{
+  "project_mode": "multi_dataset",
+  "source": "global_economic_indicators",
+  "question": "How do global GDP, inflation, and unemployment evolve over time and how are they related?",
+  "config_path": "projects/global_economic_indicators/project_config.json",
+  "primary_mart": "mart_gdp_trend",
+  "primary_kpi": "avg_gdp",
+  "question_focus_reason": "The question emphasizes change over time, so `mart_gdp_trend` is treated as the primary narrative mart",
+  "datasets": [
+    {
+      "name": "gdp",
+      "source": "https://raw.githubusercontent.com/datasets/gdp/master/data/gdp.csv",
+      "time_column": "year",
+      "metric_column": "gdp",
+      "unit": "current_usd",
+      "coverage": {
+        "min_year": 1960,
+        "max_year": 2023
+      },
+      "loader_warnings": [],
+      "raw_snapshot_path": "projects/global_economic_indicators/raw/gdp.parquet",
+      "profile_path": "projects/global_economic_indicators/metadata/gdp_profile.json",
+      "cleaned_data_path": "projects/global_economic_indicators/staging/staging_2026_03_13_221408_331cdf0f.parquet",
+      "cleaning_metadata_path": "projects/global_economic_indicators/metadata/cleaning_summary_gdp.json"
+    },
+    {
+      "name": "inflation",
+      "source": "https://api.worldbank.org/v2/country/all/indicator/FP.CPI.TOTL.ZG?format=json&per_page=20000",
+      "time_column": "year",
+      "metric_column": "inflation",
+      "unit": "percent",
+      "coverage": {
+        "min_year": 1981,
+        "max_year": 2024
+      },
+      "loader_warnings": [],
+      "raw_snapshot_path": "projects/global_economic_indicators/raw/inflation.parquet",
+      "profile_path": "projects/global_economic_indicators/metadata/inflation_profile.json",
+      "cleaned_data_path": "projects/global_economic_indicators/staging/staging_2026_03_13_221409_39c5b4de.parquet",
+      "cleaning_metadata_path": "projects/global_economic_indicators/metadata/cleaning_summary_inflation.json"
+    },
+    {
+      "name": "unemployment",
+      "source": "https://api.worldbank.org/v2/country/all/indicator/SL.UEM.TOTL.ZS?format=json&per_page=20000",
+      "time_column": "year",
+      "metric_column": "unemployment",
+      "unit": "percent",
+      "coverage": {
+        "min_year": 1991,
+        "max_year": 2025
+      },
+      "loader_warnings": [],
+      "raw_snapshot_path": "projects/global_economic_indicators/raw/unemployment.parquet",
+      "profile_path": "projects/global_economic_indicators/metadata/unemployment_profile.json",
+      "cleaned_data_path": "projects/global_economic_indicators/staging/staging_2026_03_13_221409_7f3814c8.parquet",
+      "cleaning_metadata_path": "projects/global_economic_indicators/metadata/cleaning_summary_unemployment.json"
+    }
+  ],
+  "mart_paths": {
+    "mart_gdp_trend": "projects/global_economic_indicators/marts/mart_gdp_trend.parquet",
+    "mart_gdp_summary_stats": "projects/global_economic_indicators/marts/mart_gdp_summary_stats.parquet",
+    "mart_inflation_trend": "projects/global_economic_indicators/marts/mart_inflation_trend.parquet",
+    "mart_inflation_summary_stats": "projects/global_economic_indicators/marts/mart_inflation_summary_stats.parquet",
+    "mart_unemployment_trend": "projects/global_economic_indicators/marts/mart_unemployment_trend.parquet",
+    "mart_unemployment_summary_stats": "projects/global_economic_indicators/marts/mart_unemployment_summary_stats.parquet",
+    "mart_metric_correlation": "projects/global_economic_indicators/marts/mart_metric_correlation.parquet"
+  },
+  "metrics_definitions_path": "projects/global_economic_indicators/metadata/metrics_definitions.json",
+  "anomaly_report_path": "projects/global_economic_indicators/metadata/anomaly_report_global_economic_indicators.json",
+  "analytics_metadata_path": "projects/global_economic_indicators/metadata/analytics_metadata_global_economic_indicators.json",
+  "dashboard_suggestions_path": "projects/global_economic_indicators/metadata/dashboard_suggestions_global_economic_indicators.json",
+  "integrated_dataset_path": "projects/global_economic_indicators/integrated/master_dataset.parquet",
+  "dataset_metrics": [
+    {
+      "dataset_name": "gdp",
+      "metric_column": "gdp",
+      "unit": "current_usd",
+      "time_column": "year"
+    },
+    {
+      "dataset_name": "inflation",
+      "metric_column": "inflation",
+      "unit": "percent",
+      "time_column": "year"
+    },
+    {
+      "dataset_name": "unemployment",
+      "metric_column": "unemployment",
+      "unit": "percent",
+      "time_column": "year"
+    }
+  ],
+  "project_readme_path": "projects/global_economic_indicators/README.md"
+}

@@ -1,0 +1,229 @@
+{
+  "metrics": [
+    {
+      "metric_name": "catalog_summary_record_count",
+      "source_mart": "mart_catalog_summary",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of records represented in `mart_catalog_summary`.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "catalog_summary_total_streams",
+      "source_mart": "mart_catalog_summary",
+      "source_column": "total_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Total of `streams` in `mart_catalog_summary`.",
+      "default_aggregation": "sum",
+      "unit": null
+    },
+    {
+      "metric_name": "catalog_summary_avg_streams",
+      "source_mart": "mart_catalog_summary",
+      "source_column": "avg_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Average of `streams` in `mart_catalog_summary`.",
+      "default_aggregation": "average",
+      "unit": null
+    },
+    {
+      "metric_name": "distribution_record_count",
+      "source_mart": "mart_distribution",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of records represented in `mart_distribution`.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "provider_performance_record_count",
+      "source_mart": "mart_provider_performance",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of records represented in `mart_provider_performance`.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "provider_performance_total_streams",
+      "source_mart": "mart_provider_performance",
+      "source_column": "total_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Total of `streams` in `mart_provider_performance`.",
+      "default_aggregation": "sum",
+      "unit": null
+    },
+    {
+      "metric_name": "provider_performance_avg_streams",
+      "source_mart": "mart_provider_performance",
+      "source_column": "avg_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Average of `streams` in `mart_provider_performance`.",
+      "default_aggregation": "average",
+      "unit": null
+    },
+    {
+      "metric_name": "question_answer_record_count",
+      "source_mart": "mart_question_answer",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of records represented in `mart_question_answer`.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "question_answer_avg_streams",
+      "source_mart": "mart_question_answer",
+      "source_column": "avg_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Average of `streams` in `mart_question_answer`.",
+      "default_aggregation": "average",
+      "unit": null
+    },
+    {
+      "metric_name": "release_impact_record_count",
+      "source_mart": "mart_release_impact",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of records represented in `mart_release_impact`.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "release_impact_total_streams",
+      "source_mart": "mart_release_impact",
+      "source_column": "total_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Total of `streams` in `mart_release_impact`.",
+      "default_aggregation": "sum",
+      "unit": null
+    },
+    {
+      "metric_name": "release_impact_avg_streams",
+      "source_mart": "mart_release_impact",
+      "source_column": "avg_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Average of `streams` in `mart_release_impact`.",
+      "default_aggregation": "average",
+      "unit": null
+    },
+    {
+      "metric_name": "summary_stats_min_streams",
+      "source_mart": "mart_summary_stats",
+      "source_column": "min_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Minimum statistic for `streams` across the full mart input.",
+      "default_aggregation": "min",
+      "unit": null
+    },
+    {
+      "metric_name": "summary_stats_max_streams",
+      "source_mart": "mart_summary_stats",
+      "source_column": "max_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Maximum statistic for `streams` across the full mart input.",
+      "default_aggregation": "max",
+      "unit": null
+    },
+    {
+      "metric_name": "summary_stats_avg_streams",
+      "source_mart": "mart_summary_stats",
+      "source_column": "avg_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Average statistic for `streams` across the full mart input.",
+      "default_aggregation": "average",
+      "unit": null
+    },
+    {
+      "metric_name": "summary_stats_median_streams",
+      "source_mart": "mart_summary_stats",
+      "source_column": "median_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Median statistic for `streams` across the full mart input.",
+      "default_aggregation": "median",
+      "unit": null
+    },
+    {
+      "metric_name": "summary_stats_std_streams",
+      "source_mart": "mart_summary_stats",
+      "source_column": "std_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Standard deviation statistic for `streams` across the full mart input.",
+      "default_aggregation": "std",
+      "unit": null
+    },
+    {
+      "metric_name": "summary_stats_p05_streams",
+      "source_mart": "mart_summary_stats",
+      "source_column": "p05_streams",
+      "source_metric_column": "streams",
+      "formula_description": "5th percentile statistic for `streams` across the full mart input.",
+      "default_aggregation": "p05",
+      "unit": null
+    },
+    {
+      "metric_name": "summary_stats_p25_streams",
+      "source_mart": "mart_summary_stats",
+      "source_column": "p25_streams",
+      "source_metric_column": "streams",
+      "formula_description": "25th percentile statistic for `streams` across the full mart input.",
+      "default_aggregation": "p25",
+      "unit": null
+    },
+    {
+      "metric_name": "summary_stats_p75_streams",
+      "source_mart": "mart_summary_stats",
+      "source_column": "p75_streams",
+      "source_metric_column": "streams",
+      "formula_description": "75th percentile statistic for `streams` across the full mart input.",
+      "default_aggregation": "p75",
+      "unit": null
+    },
+    {
+      "metric_name": "summary_stats_p95_streams",
+      "source_mart": "mart_summary_stats",
+      "source_column": "p95_streams",
+      "source_metric_column": "streams",
+      "formula_description": "95th percentile statistic for `streams` across the full mart input.",
+      "default_aggregation": "p95",
+      "unit": null
+    },
+    {
+      "metric_name": "time_trend_record_count",
+      "source_mart": "mart_time_trend",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of aligned records contributing to each yearly aggregate.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "time_trend_avg_streams",
+      "source_mart": "mart_time_trend",
+      "source_column": "avg_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Average of `streams` aggregated by year.",
+      "default_aggregation": "average",
+      "unit": null
+    },
+    {
+      "metric_name": "top_entities_record_count",
+      "source_mart": "mart_top_entities",
+      "source_column": "record_count",
+      "source_metric_column": null,
+      "formula_description": "Count of records represented in `mart_top_entities`.",
+      "default_aggregation": "count",
+      "unit": "count"
+    },
+    {
+      "metric_name": "top_entities_avg_streams",
+      "source_mart": "mart_top_entities",
+      "source_column": "avg_streams",
+      "source_metric_column": "streams",
+      "formula_description": "Average of `streams` in `mart_top_entities`.",
+      "default_aggregation": "average",
+      "unit": null
+    }
+  ]
+}

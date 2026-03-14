@@ -1,0 +1,8 @@
+# Active pipeline dependencies
+pandas
+pyarrow
+requests
+
+# Forward-looking dependencies kept for future query/performance work
+polars
+duckdb

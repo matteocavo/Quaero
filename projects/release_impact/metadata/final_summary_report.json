@@ -1,0 +1,43 @@
+{
+  "source": "release_impact",
+  "question": "Which release years generate the strongest average streams?",
+  "metric_column": "streams",
+  "metric_unit": null,
+  "metric_selection_mode": "auto_inferred",
+  "metric_candidates": [
+    "streams",
+    "release_year"
+  ],
+  "dimension_column": "release_year",
+  "dimension_selection_mode": "auto_inferred",
+  "dimension_candidates": [
+    "release_year",
+    "provider",
+    "catalog"
+  ],
+  "aggregation_intent": {
+    "aggregation": "average",
+    "ordering": "highest"
+  },
+  "aggregation_selection_mode": "auto_inferred",
+  "profile_path": "projects/release_impact/metadata/release_impact_profile.json",
+  "cleaned_data_path": "projects/release_impact/staging/staging_2026_03_14_144138_9a3dae84.parquet",
+  "cleaning_metadata_path": "projects/release_impact/metadata/cleaning_summary_release_impact.json",
+  "mart_paths": {
+    "mart_question_answer": "projects/release_impact/marts/mart_question_answer.parquet",
+    "mart_top_entities": "projects/release_impact/marts/mart_top_entities.parquet",
+    "mart_release_impact": "projects/release_impact/marts/mart_release_impact.parquet",
+    "mart_provider_performance": "projects/release_impact/marts/mart_provider_performance.parquet",
+    "mart_catalog_summary": "projects/release_impact/marts/mart_catalog_summary.parquet",
+    "mart_distribution": "projects/release_impact/marts/mart_distribution.parquet",
+    "mart_summary_stats": "projects/release_impact/marts/mart_summary_stats.parquet",
+    "mart_time_trend": "projects/release_impact/marts/mart_time_trend.parquet"
+  },
+  "skipped_marts": [],
+  "metrics_definitions_path": "projects/release_impact/metadata/metrics_definitions.json",
+  "anomaly_report_path": "projects/release_impact/metadata/anomaly_report_release_impact.json",
+  "analytics_metadata_path": "projects/release_impact/metadata/analytics_metadata_release_impact.json",
+  "dashboard_suggestions_path": "projects/release_impact/metadata/dashboard_suggestions_release_impact.json",
+  "primary_kpi": "avg_streams",
+  "project_readme_path": "projects/release_impact/README.md"
+}

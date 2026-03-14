@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Private / local-only projects
+.private/
+
+# Claude Code session settings (local machine only)
+.claude/
+
+# IDE workspace files
+*.code-workspace
+
+# Agent interaction and internal dev workflow docs
+AGENTS.md
+WORKFLOW.md
+LOOP.md
+SYSTEM_PROMPT.md
+TASKS.md
+
+# Generated pipeline artifacts (binary, regenerable)
+projects/*/raw/
+projects/*/staging/
+projects/*/integrated/
+projects/*/marts/
+
+# Generated metadata (run-specific, not source)
+projects/*/metadata/run_manifest_*.json
+projects/*/metadata/*_profile.json
+projects/*/metadata/cleaning_summary_*.json
+projects/*/metadata/anomaly_report_*.json
+projects/*/metadata/analytics_metadata_*.json
+projects/*/metadata/dashboard_suggestions_*.json
