@@ -1,4 +1,5 @@
 <img src="https://matteocavo.github.io/images/quaero.png">
+<img src="https://matteocavo.github.io/images/quaero_info.png">
 
 # Quaero
 
