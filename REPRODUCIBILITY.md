@@ -44,12 +44,17 @@ python -m app.main <source_path_or_url> \
 ### Python module wrapper
 
 ```python
-from app.main import run_pipeline
+from app.main import run_pipeline, run_project_pipeline
 
 result = run_pipeline(
     dataset_path="sample_data/release_impact_sample.csv",
     source_name="release_impact",
     question="Which release years generate the strongest average streams?",
+    project_root=".",
+)
+
+project_result = run_project_pipeline(
+    config_path="projects/global_economic_indicators/project_config.json",
     project_root=".",
 )
 ```
@@ -65,6 +70,11 @@ python -m app.main --config projects/global_economic_indicators/project_config.j
 ```bash
 streamlit run app/ui.py
 ```
+
+The UI supports both:
+
+- single-dataset runs from an uploaded CSV/Parquet file or direct URL
+- multi-dataset config-driven runs, with one uploaded file or URL per dataset
 
 ---
 

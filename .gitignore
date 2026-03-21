@@ -26,6 +26,7 @@ projects/*/raw/
 projects/*/staging/
 projects/*/integrated/
 projects/*/marts/
+projects/*/ui_inputs/
 
 # Generated metadata (run-specific, not source)
 projects/*/metadata/run_manifest_*.json

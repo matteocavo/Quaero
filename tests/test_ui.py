@@ -25,3 +25,31 @@ def test_ui_accepts_business_question_and_exposes_run_pipeline_button() -> None:
 
     assert len(app.exception) == 0
     assert any(button.label == "Run Pipeline" for button in app.button)
+
+
+def test_ui_renders_single_dataset_url_mode_without_exceptions() -> None:
+    app = AppTest.from_file("app/ui.py")
+
+    app.run()
+
+    app.radio[1].set_value("Fetch from URL")
+    app.run()
+
+    assert len(app.exception) == 0
+    assert any(text_input.label == "Dataset URL" for text_input in app.text_input)
+
+
+def test_ui_renders_multi_dataset_mode_without_exceptions() -> None:
+    app = AppTest.from_file("app/ui.py")
+
+    app.run()
+
+    app.radio[0].set_value("Multi-dataset project")
+    app.run()
+
+    assert len(app.exception) == 0
+    assert any(text_input.label == "Project Name" for text_input in app.text_input)
+    assert any(
+        number_input.label == "Number of datasets" for number_input in app.number_input
+    )
+    assert any(button.label == "Run Pipeline" for button in app.button)

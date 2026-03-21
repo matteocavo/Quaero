@@ -37,6 +37,18 @@ def run_pipeline(
     )
 
 
+def run_project_pipeline(
+    config_path: str,
+    project_root: str | None = None,
+) -> dict:
+    """Run a config-driven project as a reusable module-friendly helper."""
+    _configure_logging()
+    return run_project_from_config(
+        config_path=config_path,
+        project_root=project_root,
+    )
+
+
 def main() -> None:
     """Parse CLI arguments and delegate execution to the pipeline runner."""
     _configure_logging()
@@ -93,7 +105,7 @@ def main() -> None:
         parser.error("Provide either a dataset source_path or --config, but not both.")
 
     if args.config:
-        result = run_project_from_config(
+        result = run_project_pipeline(
             config_path=args.config,
             project_root=args.project_root,
         )

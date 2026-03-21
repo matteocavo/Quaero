@@ -143,10 +143,10 @@ Quaero can now be used in three ways:
 - as an importable Python module for app integrations
 - through the local Streamlit UI in `app/ui.py`
 
-The module-friendly wrapper exposed by `app/main.py` is:
+The module-friendly helpers exposed by `app/main.py` are:
 
 ```python
-from app.main import run_pipeline
+from app.main import run_pipeline, run_project_pipeline
 
 result = run_pipeline(
     dataset_path="sample_data/release_impact_sample.csv",
@@ -154,10 +154,15 @@ result = run_pipeline(
     question="Which release years generate the strongest average streams?",
     project_root=".",
 )
+
+project_result = run_project_pipeline(
+    config_path="projects/global_economic_indicators/project_config.json",
+    project_root=".",
+)
 ```
 
-This returns the full pipeline result dictionary, which makes it suitable for
-Streamlit or other lightweight application layers.
+These helpers return the full pipeline result dictionary, which makes them
+suitable for Streamlit or other lightweight application layers.
 
 ## Question-driven analysis
 
@@ -363,15 +368,17 @@ Run it with:
 streamlit run app/ui.py
 ```
 
-The UI is a thin layer over the same `run_pipeline(...)` module helper used by
-the CLI. It accepts:
+The UI is a thin layer over the same module helpers used by the CLI. It now supports:
 
-- an uploaded CSV or Parquet file
-- a business question
-- a source/project name
+- single-dataset runs from an uploaded CSV/Parquet file
+- single-dataset runs from a direct dataset URL
+- multi-dataset project runs built in the UI with one source per dataset
+- uploaded files or fetch URLs for each dataset in a config-driven project
 
-and then runs the standard pipeline, surfacing the summary and generated marts
-without changing the underlying pipeline logic.
+For multi-dataset runs, the UI writes a stable `project_config.json` under the
+project folder and reuses the standard config-driven pipeline path, so the UI is
+now aligned with Quaero's actual multi-dataset architecture instead of exposing
+only the single-dataset path.
 
 ## Testing
 

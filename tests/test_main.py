@@ -34,6 +34,32 @@ def test_run_pipeline_wrapper_delegates_to_pipeline_runner(
     }
 
 
+def test_run_project_pipeline_wrapper_delegates_to_config_runner(
+    tmp_path, monkeypatch
+) -> None:
+    expected = {"final_summary_report": {"summary": {"project": "demo"}}}
+    captured: dict[str, object] = {}
+
+    def fake_run_project_from_config(**kwargs):
+        captured.update(kwargs)
+        return expected
+
+    monkeypatch.setattr(
+        main_module, "run_project_from_config", fake_run_project_from_config
+    )
+
+    result = main_module.run_project_pipeline(
+        config_path="project_config.json",
+        project_root=str(tmp_path),
+    )
+
+    assert result == expected
+    assert captured == {
+        "config_path": "project_config.json",
+        "project_root": str(tmp_path),
+    }
+
+
 def test_main_cli_keeps_single_dataset_overrides_backward_compatible(
     monkeypatch, capsys
 ) -> None:
