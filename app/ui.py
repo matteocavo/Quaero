@@ -3,14 +3,19 @@ from __future__ import annotations
 import io
 import json
 import logging
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
-import streamlit as st
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from app.main import run_pipeline, run_project_pipeline
-from pipelines.utils import normalize_name
+import streamlit as st  # noqa: E402
+
+from app.main import run_pipeline, run_project_pipeline  # noqa: E402
+from pipelines.utils import normalize_name  # noqa: E402
 
 st.set_page_config(page_title="Quaero Pipeline", page_icon="🔍", layout="wide")
 
