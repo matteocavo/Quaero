@@ -3,6 +3,10 @@
 
 # Quaero
 
+[![CI](https://github.com/matteocavo/Quaero/actions/workflows/pipeline_ci.yml/badge.svg)](https://github.com/matteocavo/Quaero/actions/workflows/pipeline_ci.yml)
+[![Release](https://img.shields.io/github/v/release/matteocavo/Quaero)](https://github.com/matteocavo/Quaero/releases/latest)
+[![MIT License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+
 Quaero is a question-driven analytics pipeline that converts raw datasets
 into clean analytical marts, semantic metrics, and dashboard-ready outputs.
 
