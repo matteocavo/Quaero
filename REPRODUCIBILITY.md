@@ -20,6 +20,12 @@ Current pipeline execution relies on `pandas`, `pyarrow`, and `requests`.
 for future query and performance-oriented extensions, but they are not required
 by the active pipeline paths documented here.
 
+The current local UI and optional inference fallback also rely on:
+
+- `streamlit`
+- `anthropic`
+- `pydantic`
+
 Python 3.11+ recommended. All commands run from the repository root.
 
 ---
@@ -35,10 +41,29 @@ python -m app.main <source_path_or_url> \
   --project-root "."
 ```
 
+### Python module wrapper
+
+```python
+from app.main import run_pipeline
+
+result = run_pipeline(
+    dataset_path="sample_data/release_impact_sample.csv",
+    source_name="release_impact",
+    question="Which release years generate the strongest average streams?",
+    project_root=".",
+)
+```
+
 ### Config-driven (public demo project)
 
 ```bash
 python -m app.main --config projects/global_economic_indicators/project_config.json --project-root "."
+```
+
+### Streamlit UI (local)
+
+```bash
+streamlit run app/ui.py
 ```
 
 ---
@@ -129,6 +154,30 @@ What can go wrong:
 - Result drift over time: reruns may change row counts, max years, or values even when the code stays unchanged.
 - Rate limiting: avoid repeatedly hammering live public APIs in rapid succession.
 - SSL: all loaders use the system CA bundle by default. `allow_insecure_ssl: true` is an opt-in escape hatch only for intercepted networks.
+
+---
+
+## Optional LLM fallback
+
+Quaero remains deterministic by default.
+
+For ambiguous metric or dimension questions, an optional fallback can be
+enabled with:
+
+```bash
+# Windows
+set QUAERO_ANTHROPIC_API_KEY=your_key_here
+
+# macOS / Linux
+export QUAERO_ANTHROPIC_API_KEY=your_key_here
+```
+
+Behavior:
+
+- no key: deterministic inference only
+- key present + valid LLM result: selection mode may become `llm_assisted`
+- LLM failure or invalid column: Quaero falls back to the same deterministic
+  error behavior and asks for a manual override
 
 ---
 

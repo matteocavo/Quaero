@@ -60,6 +60,7 @@ Steps performed automatically:
 - dataset profiling
 - data cleaning and normalization
 - semantic inference of metrics and dimensions
+- optional LLM-assisted inference fallback for ambiguous questions
 - mart table generation
 - analytics metadata creation
 - anomaly detection
@@ -130,6 +131,30 @@ The CLI in `app/main.py` supports:
 
 The current outputs are BI-tool agnostic in positioning and can feed multiple dashboard tools, including Power BI, Tableau, and Looker Studio, by loading the generated marts directly.
 
+## Python module and UI usage
+
+Quaero can now be used in three ways:
+
+- from the CLI for direct and config-driven runs
+- as an importable Python module for app integrations
+- through the local Streamlit UI in `app/ui.py`
+
+The module-friendly wrapper exposed by `app/main.py` is:
+
+```python
+from app.main import run_pipeline
+
+result = run_pipeline(
+    dataset_path="sample_data/release_impact_sample.csv",
+    source_name="release_impact",
+    question="Which release years generate the strongest average streams?",
+    project_root=".",
+)
+```
+
+This returns the full pipeline result dictionary, which makes it suitable for
+Streamlit or other lightweight application layers.
+
 ## Question-driven analysis
 
 The preferred workflow is now question-driven. In the common case, you only
@@ -166,6 +191,13 @@ deterministic semantic inference to resolve:
 
 Use `--metric-column` or `--dimension-column` only as manual overrides when the
 question is too ambiguous for automatic inference.
+
+When deterministic inference cannot confidently resolve a metric or dimension,
+Quaero can optionally use an LLM fallback. This path is disabled by default and
+is only activated when `QUAERO_ANTHROPIC_API_KEY` is present in the environment.
+If the fallback succeeds, the selection mode is recorded as `llm_assisted`;
+otherwise Quaero keeps the existing deterministic error behavior and asks for a
+manual override.
 
 Manual override example:
 
@@ -316,6 +348,26 @@ Recommended guidance:
 
 This keeps the repository lightweight while still making it easy to test the
 pipeline with realistic external data.
+
+## Streamlit UI
+
+Quaero includes a lightweight local UI at `app/ui.py`.
+
+Run it with:
+
+```bash
+streamlit run app/ui.py
+```
+
+The UI is a thin layer over the same `run_pipeline(...)` module helper used by
+the CLI. It accepts:
+
+- an uploaded CSV or Parquet file
+- a business question
+- a source/project name
+
+and then runs the standard pipeline, surfacing the summary and generated marts
+without changing the underlying pipeline logic.
 
 ## Testing
 

@@ -6,7 +6,10 @@ import argparse
 import json
 import logging
 
-from app.pipeline_runner import run_pipeline, run_project_from_config
+from app.pipeline_runner import (
+    run_pipeline as run_dataset_pipeline,
+    run_project_from_config,
+)
 
 
 def _configure_logging() -> None:
@@ -16,6 +19,22 @@ def _configure_logging() -> None:
             level=logging.INFO,
             format="%(asctime)s %(levelname)s %(name)s - %(message)s",
         )
+
+
+def run_pipeline(
+    dataset_path: str,
+    source_name: str,
+    question: str,
+    project_root: str | None = None,
+) -> dict:
+    """Run the single-dataset pipeline as a reusable module-friendly helper."""
+    _configure_logging()
+    return run_dataset_pipeline(
+        source_path=dataset_path,
+        source_name=source_name,
+        question=question,
+        project_root=project_root,
+    )
 
 
 def main() -> None:
@@ -83,17 +102,36 @@ def main() -> None:
             parser.error(
                 "--source-name and --question are required when running a single dataset."
             )
-        result = run_pipeline(
-            source_path=args.source_path,
-            source_name=args.source_name,
-            question=args.question,
-            metric_column=args.metric_column,
-            dimension_column=args.dimension_column,
-            catalog_column=args.catalog_column,
-            provider_column=args.provider_column,
-            release_year_column=args.release_year_column,
-            project_root=args.project_root,
-        )
+        if (
+            any(
+                value is not None
+                for value in (
+                    args.metric_column,
+                    args.dimension_column,
+                    args.catalog_column,
+                )
+            )
+            or args.provider_column != "provider"
+            or args.release_year_column != "release_year"
+        ):
+            result = run_dataset_pipeline(
+                source_path=args.source_path,
+                source_name=args.source_name,
+                question=args.question,
+                metric_column=args.metric_column,
+                dimension_column=args.dimension_column,
+                catalog_column=args.catalog_column,
+                provider_column=args.provider_column,
+                release_year_column=args.release_year_column,
+                project_root=args.project_root,
+            )
+        else:
+            result = run_pipeline(
+                dataset_path=args.source_path,
+                source_name=args.source_name,
+                question=args.question,
+                project_root=args.project_root,
+            )
     print(json.dumps(result["final_summary_report"]["summary"], indent=2))
 
 

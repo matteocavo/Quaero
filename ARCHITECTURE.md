@@ -10,6 +10,9 @@ It now supports question-driven analysis, where the pipeline can infer the
 metric column, dimension column, and aggregation intent directly from the
 dataset plus the user question.
 
+The same orchestration is available through both the CLI and an importable
+module wrapper used by the Streamlit UI.
+
 Projects are project-scoped and may contain one dataset or many datasets. The
 base architectural contract remains `raw/ -> staging/ -> marts/`. An optional
 `integrated/` layer is available for projects that need to combine multiple
@@ -507,6 +510,12 @@ Responsibilities:
 - infer dimension column
 - infer aggregation intent
 - guide primary mart selection in generated metadata
+
+### Optional LLM Inference Fallback
+
+When deterministic inference is ambiguous and `QUAERO_ANTHROPIC_API_KEY` is set,
+`kpi_engine/llm_inference.py` provides a Claude-backed fallback that returns a
+schema-validated column name. The deterministic path always runs first.
 
 ### KPI Engine
 Suggests metrics and dimensions.

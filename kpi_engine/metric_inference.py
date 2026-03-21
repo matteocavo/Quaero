@@ -109,6 +109,28 @@ def infer_metric_column(
             "candidates": candidates,
         }
 
+    import os
+
+    api_key = os.getenv("QUAERO_ANTHROPIC_API_KEY")
+    if api_key:
+        from kpi_engine.llm_inference import infer_column_with_llm
+
+        schema_with_types = [
+            f"{col} ({dataframe[col].dtype})" for col in dataframe.columns
+        ]
+        try:
+            llm_col = infer_column_with_llm(
+                question, schema_with_types, "numeric metric", api_key
+            )
+        except Exception:
+            llm_col = None
+        if llm_col in dataframe.columns:
+            return {
+                "metric_column": llm_col,
+                "selection_mode": "llm_assisted",
+                "candidates": candidates,
+            }
+
     top_candidates = ", ".join(candidate["column"] for candidate in candidates[:5])
     raise ValueError(
         "Could not confidently infer a metric column from the question. "
@@ -149,6 +171,28 @@ def infer_dimension_column(
             "selection_mode": "auto_inferred",
             "candidates": candidates,
         }
+
+    import os
+
+    api_key = os.getenv("QUAERO_ANTHROPIC_API_KEY")
+    if api_key:
+        from kpi_engine.llm_inference import infer_column_with_llm
+
+        schema_with_types = [
+            f"{col} ({dataframe[col].dtype})" for col in dataframe.columns
+        ]
+        try:
+            llm_col = infer_column_with_llm(
+                question, schema_with_types, "grouping dimension", api_key
+            )
+        except Exception:
+            llm_col = None
+        if llm_col in dataframe.columns:
+            return {
+                "dimension_column": llm_col,
+                "selection_mode": "llm_assisted",
+                "candidates": candidates,
+            }
 
     top_candidates = ", ".join(candidate["column"] for candidate in candidates[:5])
     raise ValueError(

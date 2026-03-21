@@ -2,6 +2,9 @@
 pandas
 pyarrow
 requests
+streamlit
+anthropic
+pydantic
 
 # Forward-looking dependencies kept for future query/performance work
 polars

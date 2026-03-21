@@ -42,6 +42,16 @@ In config-driven mode, the top-level project question remains part of the core
 interaction model. It guides the primary analytical narrative while the
 framework still generates its generic mart outputs.
 
+This interaction must remain available through:
+
+- the CLI
+- a lightweight local UI
+- an importable Python entrypoint for app integration
+
+Deterministic inference remains the default behavior. An optional LLM fallback
+may assist ambiguous inference, but it must remain opt-in, non-breaking,
+schema-validated, and secondary to the deterministic path.
+
 ---
 
 # Target Users
