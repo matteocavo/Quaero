@@ -54,6 +54,8 @@ from pipelines.dq_scorer import score_dataframe
 from pipelines.sql_export import export_marts_to_sql
 from pipelines.pbi_export import export_pbi_schema
 from pipelines.lineage import build_lineage
+from pipelines.lineage_html import render_lineage_html
+from pipelines.anomaly_framing import frame_anomalies
 from kpi_engine.metrics_yaml import write_metrics_yaml
 
 
@@ -501,6 +503,17 @@ def run_pipeline(
     )
     metrics_yaml_path = write_metrics_yaml(mart_dataframes, project_root=project_dir)
 
+    # v0.4 additions: lineage HTML + anomaly framing v2
+    lineage_html_result = render_lineage_html(
+        source_name=source_name,
+        project_root=project_dir,
+    )
+    anomaly_framing_result = frame_anomalies(
+        source_name=source_name,
+        total_row_count=len(anomaly_input),
+        project_root=project_dir,
+    )
+
     project_prefix = f"projects/{normalized_source_name}"
     results = {
         "ingestion": _with_project_prefix(
@@ -548,6 +561,12 @@ def run_pipeline(
             pbi_schema_result, project_prefix, "output_path"
         ),
         "lineage": _with_project_prefix(lineage_result, project_prefix, "output_path"),
+        "lineage_html": _with_project_prefix(
+            lineage_html_result, project_prefix, "output_path"
+        ),
+        "anomaly_framing_v2": _with_project_prefix(
+            anomaly_framing_result, project_prefix, "output_path"
+        ),
         "metrics_yaml_path": _prefixed_path(project_prefix, metrics_yaml_path),
     }
 
@@ -887,8 +906,10 @@ def _write_final_summary_report(
         "skipped_marts": results["skipped_marts"],
         "metrics_definitions_path": results["metrics_definitions"]["output_path"],
         "anomaly_report_path": results["anomaly_detection_path"],
+        "anomaly_report_v2_path": results["anomaly_framing_v2"]["output_path"],
         "analytics_metadata_path": results["analytics_metadata"]["output_path"],
         "dashboard_suggestions_path": results["dashboard_suggestions"]["output_path"],
+        "lineage_html_path": results["lineage_html"]["output_path"],
         "primary_kpi": results["kpi_suggestions"]["primary_kpi"],
     }
 
@@ -1769,6 +1790,10 @@ def _build_project_artifact_lines(
         f"- Clean dataset: `{summary['cleaned_data_path']}`",
         f"- Metadata: `{metadata_dir}`",
     ]
+    if summary.get("lineage_html_path"):
+        lines.append(f"- Lineage graph: `{summary['lineage_html_path']}`")
+    if summary.get("anomaly_report_v2_path"):
+        lines.append(f"- Anomaly framing v2: `{summary['anomaly_report_v2_path']}`")
 
     if summary["mart_paths"]:
         lines.append("- Mart tables:")

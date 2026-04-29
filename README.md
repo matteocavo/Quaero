@@ -21,6 +21,24 @@ source to mart table, every transformation is logged and every column is scored.
 
 Dataset → Question → Analytical Marts → Dashboard
 
+## What's new in v0.4.0
+
+v0.4.0 closes two gaps left from the original roadmap: making the lineage
+graph actually *visible*, and making anomaly reports *actionable*.
+
+**Lineage HTML export**
+- `pipelines/lineage_html.py`: reads `metadata/lineage.json` and generates
+  a self-contained `metadata/lineage.html` — a Mermaid.js flowchart
+  grouped by layer (RAW → STAGING → MART) with colour-coded edges
+  (passthrough, normalized, type_cast, aggregated); zero build step required
+
+**Anomaly Framing v2**
+- `pipelines/anomaly_framing.py`: enriches the existing anomaly report with
+  `frequency` (fraction of flagged rows), `impact` (low / medium / high),
+  `suggested_action` (deterministic guidance by impact × detection method),
+  and a top-level `business_summary`; written to
+  `metadata/anomaly_report_v2_<source>.json` — backward-compatible with v1
+
 ## What's new in v0.3
 
 v0.3 introduces three major additions built around a single principle: the
@@ -364,6 +382,8 @@ Full list of metadata outputs per project run:
 | `metrics/metrics.yml` | **[v0.3]** dbt-style YAML metric definitions |
 | `marts/<mart_name>.parquet` | Analytical mart (Parquet) |
 | `marts/<mart_name>.sql` | **[v0.3]** PostgreSQL DDL + INSERT export |
+| `metadata/lineage.html` | **[v0.4]** Mermaid.js lineage flowchart (RAW → STAGING → MART) |
+| `metadata/anomaly_report_v2_<source>.json` | **[v0.4]** Enriched anomaly report with impact, frequency, suggested action |
 | `metadata/final_summary_report.json` | Full pipeline run summary |
 
 For config-driven projects, `final_summary_report.json` also records:

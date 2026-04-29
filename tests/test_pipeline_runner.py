@@ -42,6 +42,24 @@ def test_run_pipeline_executes_modules_in_sequence(tmp_path: Path) -> None:
     assert "mart_release_impact" in result["marts"]
     assert result["kpi_suggestions"]["primary_kpi"] == "avg_streams"
     assert result["anomaly_detection"]["source"] == "release_impact"
+    assert (
+        result["lineage_html"]["output_path"]
+        == "projects/release_impact/metadata/lineage.html"
+    )
+    assert (
+        result["anomaly_framing_v2"]["output_path"]
+        == "projects/release_impact/metadata/anomaly_report_v2_release_impact.json"
+    )
+    assert (
+        tmp_path / "projects" / "release_impact" / "metadata" / "lineage.html"
+    ).exists()
+    assert (
+        tmp_path
+        / "projects"
+        / "release_impact"
+        / "metadata"
+        / "anomaly_report_v2_release_impact.json"
+    ).exists()
     assert "possible_kpis" in result["analytics_metadata"]
     assert "dashboard_suggestions" in result["dashboard_suggestions"]
     assert (
@@ -75,6 +93,14 @@ def test_run_pipeline_executes_modules_in_sequence(tmp_path: Path) -> None:
     assert (
         result["final_summary_report"]["summary"]["dashboard_suggestions_path"]
         == "projects/release_impact/metadata/dashboard_suggestions_release_impact.json"
+    )
+    assert (
+        result["final_summary_report"]["summary"]["lineage_html_path"]
+        == "projects/release_impact/metadata/lineage.html"
+    )
+    assert (
+        result["final_summary_report"]["summary"]["anomaly_report_v2_path"]
+        == "projects/release_impact/metadata/anomaly_report_v2_release_impact.json"
     )
     assert result["cleaning"]["output_path"].startswith(
         "projects/release_impact/staging/staging_"
@@ -161,6 +187,14 @@ def test_run_pipeline_executes_modules_in_sequence(tmp_path: Path) -> None:
         in project_readme
     )
     assert "mart_release_impact" in project_readme
+    assert (
+        "- Lineage graph: `projects/release_impact/metadata/lineage.html`"
+        in project_readme
+    )
+    assert (
+        "- Anomaly framing v2: `projects/release_impact/metadata/anomaly_report_v2_release_impact.json`"
+        in project_readme
+    )
     assert '--project-root "."' in project_readme
     assert "Analytical marts live under `marts/`" in project_readme
     assert "exports/bi" not in project_readme
