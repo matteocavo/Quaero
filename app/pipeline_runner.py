@@ -50,6 +50,11 @@ from pipelines.mart_builder import (
 from pipelines.project_loaders import load_dataset_from_config
 from pipelines.profiling import profile_dataframe
 from pipelines.utils import format_analysis_title, normalize_name, resolve_project_root
+from pipelines.dq_scorer import score_dataframe
+from pipelines.sql_export import export_marts_to_sql
+from pipelines.pbi_export import export_pbi_schema
+from pipelines.lineage import build_lineage
+from kpi_engine.metrics_yaml import write_metrics_yaml
 
 
 LOGGER = logging.getLogger(__name__)
@@ -474,6 +479,26 @@ def run_pipeline(
         project_root=project_dir,
     )
 
+    # v1 additions: DQ score, SQL export, Power BI schema, lineage, metrics YAML
+    mart_dataframes = {name: r["dataframe"] for name, r in mart_results.items() if "dataframe" in r}
+    dq_score_result = score_dataframe(
+        dataframe=cleaned_dataframe,
+        source_name=source_name,
+        project_root=project_dir,
+    )
+    sql_paths = export_marts_to_sql(mart_dataframes, project_root=project_dir)
+    pbi_schema_result = export_pbi_schema(mart_dataframes, project_root=project_dir)
+    cleaning_log = cleaning_result.get("cleaning_log", {})
+    lineage_result = build_lineage(
+        raw_columns=ingestion_result.get("columns", list(cleaned_dataframe.columns)),
+        staging_dataframe=cleaned_dataframe,
+        marts=mart_dataframes,
+        cleaning_log=cleaning_log,
+        source_name=source_name,
+        project_root=project_dir,
+    )
+    metrics_yaml_path = write_metrics_yaml(mart_dataframes, project_root=project_dir)
+
     project_prefix = f"projects/{normalized_source_name}"
     results = {
         "ingestion": _with_project_prefix(
@@ -488,6 +513,7 @@ def run_pipeline(
             "output_path",
             "metadata_path",
         ),
+        "cleaning_log": cleaning_log,
         "marts": {
             name: _prefixed_path(project_prefix, result["output_path"])
             for name, result in mart_results.items()
@@ -510,6 +536,11 @@ def run_pipeline(
         "dashboard_suggestions": _with_project_prefix(
             dashboard_result, project_prefix, "output_path"
         ),
+        "dq_score": _with_project_prefix(dq_score_result, project_prefix, "output_path"),
+        "sql_exports": {name: _prefixed_path(project_prefix, p) for name, p in sql_paths.items()},
+        "pbi_schema": _with_project_prefix(pbi_schema_result, project_prefix, "output_path"),
+        "lineage": _with_project_prefix(lineage_result, project_prefix, "output_path"),
+        "metrics_yaml_path": _prefixed_path(project_prefix, metrics_yaml_path),
     }
 
     final_summary = _write_final_summary_report(
