@@ -480,7 +480,9 @@ def run_pipeline(
     )
 
     # v1 additions: DQ score, SQL export, Power BI schema, lineage, metrics YAML
-    mart_dataframes = {name: r["dataframe"] for name, r in mart_results.items() if "dataframe" in r}
+    mart_dataframes = {
+        name: r["dataframe"] for name, r in mart_results.items() if "dataframe" in r
+    }
     dq_score_result = score_dataframe(
         dataframe=cleaned_dataframe,
         source_name=source_name,
@@ -536,9 +538,15 @@ def run_pipeline(
         "dashboard_suggestions": _with_project_prefix(
             dashboard_result, project_prefix, "output_path"
         ),
-        "dq_score": _with_project_prefix(dq_score_result, project_prefix, "output_path"),
-        "sql_exports": {name: _prefixed_path(project_prefix, p) for name, p in sql_paths.items()},
-        "pbi_schema": _with_project_prefix(pbi_schema_result, project_prefix, "output_path"),
+        "dq_score": _with_project_prefix(
+            dq_score_result, project_prefix, "output_path"
+        ),
+        "sql_exports": {
+            name: _prefixed_path(project_prefix, p) for name, p in sql_paths.items()
+        },
+        "pbi_schema": _with_project_prefix(
+            pbi_schema_result, project_prefix, "output_path"
+        ),
         "lineage": _with_project_prefix(lineage_result, project_prefix, "output_path"),
         "metrics_yaml_path": _prefixed_path(project_prefix, metrics_yaml_path),
     }

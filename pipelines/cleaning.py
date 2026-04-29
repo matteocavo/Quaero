@@ -66,21 +66,25 @@ def clean_dataframe(
     renamed = {old: new for old, new in old_to_new.items() if old != new}
     cleaned.columns = [old_to_new[c] for c in cleaned.columns]
     if renamed:
-        decisions.append(_decision(
-            step="column_normalization",
-            action="normalize_column_names",
-            columns=list(renamed.keys()),
-            rows_affected=None,
-            details=f"Renamed {len(renamed)} column(s): "
-            + ", ".join(f'"{k}" -> "{v}"' for k, v in renamed.items()),
-        ))
+        decisions.append(
+            _decision(
+                step="column_normalization",
+                action="normalize_column_names",
+                columns=list(renamed.keys()),
+                rows_affected=None,
+                details=f"Renamed {len(renamed)} column(s): "
+                + ", ".join(f'"{k}" -> "{v}"' for k, v in renamed.items()),
+            )
+        )
 
     # Step 2 — missing value standardisation
     cleaned, blank_decisions = _standardize_missing_values_logged(cleaned)
     decisions.extend(blank_decisions)
 
     # Step 3 — type enforcement
-    cleaned, type_conversion_issue, type_decisions = _apply_type_enforcement_logged(cleaned)
+    cleaned, type_conversion_issue, type_decisions = _apply_type_enforcement_logged(
+        cleaned
+    )
     decisions.extend(type_decisions)
 
     # Step 4 — date parsing
@@ -98,13 +102,15 @@ def clean_dataframe(
     )
     duplicate_row_count = int(duplicate_mask.sum())
     if duplicate_row_count > 0:
-        decisions.append(_decision(
-            step="deduplication",
-            action="remove_duplicate_rows",
-            columns=None,
-            rows_affected=duplicate_row_count,
-            details=f"{duplicate_row_count} duplicate row(s) removed (keep='first').",
-        ))
+        decisions.append(
+            _decision(
+                step="deduplication",
+                action="remove_duplicate_rows",
+                columns=None,
+                rows_affected=duplicate_row_count,
+                details=f"{duplicate_row_count} duplicate row(s) removed (keep='first').",
+            )
+        )
 
     deduplicated["has_nulls"] = deduplicated.isna().any(axis=1)
     deduplicated["invalid_date_parse"] = deduplicated_date_issue.astype(bool)
@@ -160,6 +166,7 @@ def clean_dataframe(
 # Logged transformation helpers (used by clean_dataframe)
 # ---------------------------------------------------------------------------
 
+
 def _decision(
     step: str,
     action: str,
@@ -189,13 +196,15 @@ def _standardize_missing_values_logged(
             cleaned[column_name] = series.replace(r"^\s*$", pd.NA, regex=True)
             new_nulls = int(cleaned[column_name].isna().sum()) - before_nulls
             if new_nulls > 0:
-                decisions.append(_decision(
-                    step="missing_value_standardization",
-                    action="replace_blank_with_null",
-                    columns=[column_name],
-                    rows_affected=new_nulls,
-                    details=f"{new_nulls} blank string(s) in '{column_name}' replaced with pd.NA.",
-                ))
+                decisions.append(
+                    _decision(
+                        step="missing_value_standardization",
+                        action="replace_blank_with_null",
+                        columns=[column_name],
+                        rows_affected=new_nulls,
+                        details=f"{new_nulls} blank string(s) in '{column_name}' replaced with pd.NA.",
+                    )
+                )
     return cleaned, decisions
 
 
@@ -231,16 +240,22 @@ def _apply_type_enforcement_logged(
             issue_mask = non_null_mask & numeric_series.isna()
             failed = int(issue_mask.sum())
             type_conversion_issue = type_conversion_issue | issue_mask
-            decisions.append(_decision(
-                step="type_enforcement",
-                action="cast_to_numeric",
-                columns=[column_name],
-                rows_affected=failed if failed > 0 else None,
-                details=(
-                    f"'{column_name}' cast to numeric (ratio: {numeric_ratio:.0%})."
-                    + (f" {failed} value(s) could not convert." if failed > 0 else "")
-                ),
-            ))
+            decisions.append(
+                _decision(
+                    step="type_enforcement",
+                    action="cast_to_numeric",
+                    columns=[column_name],
+                    rows_affected=failed if failed > 0 else None,
+                    details=(
+                        f"'{column_name}' cast to numeric (ratio: {numeric_ratio:.0%})."
+                        + (
+                            f" {failed} value(s) could not convert."
+                            if failed > 0
+                            else ""
+                        )
+                    ),
+                )
+            )
         else:
             cleaned[column_name] = prepared_series
 
@@ -274,23 +289,27 @@ def _apply_date_parsing_logged(
             invalid_count = int(invalid_mask.sum())
             invalid_date_parse = invalid_date_parse | invalid_mask
             cleaned[column_name] = prepared_series
-            decisions.append(_decision(
-                step="date_parsing",
-                action="skip_date_parse",
-                columns=[column_name],
-                rows_affected=invalid_count,
-                details=f"'{column_name}' skipped: {invalid_count} value(s) unparseable as datetime.",
-            ))
+            decisions.append(
+                _decision(
+                    step="date_parsing",
+                    action="skip_date_parse",
+                    columns=[column_name],
+                    rows_affected=invalid_count,
+                    details=f"'{column_name}' skipped: {invalid_count} value(s) unparseable as datetime.",
+                )
+            )
             continue
 
         cleaned[column_name] = parsed_series
-        decisions.append(_decision(
-            step="date_parsing",
-            action="cast_to_datetime",
-            columns=[column_name],
-            rows_affected=None,
-            details=f"'{column_name}' cast to datetime (UTC).",
-        ))
+        decisions.append(
+            _decision(
+                step="date_parsing",
+                action="cast_to_datetime",
+                columns=[column_name],
+                rows_affected=None,
+                details=f"'{column_name}' cast to datetime (UTC).",
+            )
+        )
 
     return cleaned, invalid_date_parse, decisions
 
@@ -298,6 +317,7 @@ def _apply_date_parsing_logged(
 # ---------------------------------------------------------------------------
 # Legacy non-logged helpers (kept for backward compatibility with tests)
 # ---------------------------------------------------------------------------
+
 
 def _standardize_missing_values(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Normalize blank string values to pandas missing values."""

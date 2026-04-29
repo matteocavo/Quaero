@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from kpi_engine.metrics_yaml import write_metrics_yaml, _infer_agg_and_source
 

@@ -76,11 +76,14 @@ def build_lineage(
     cast_decisions = {
         d["columns"][0]: d["action"]
         for d in cleaning_log.get("decisions", [])
-        if d.get("columns") and d.get("action") in {"cast_to_numeric", "cast_to_datetime"}
+        if d.get("columns")
+        and d.get("action") in {"cast_to_numeric", "cast_to_datetime"}
     }
 
     # Staging layer
-    staging_cols = [c for c in staging_dataframe.columns if c not in _QUALITY_FLAG_COLUMNS]
+    staging_cols = [
+        c for c in staging_dataframe.columns if c not in _QUALITY_FLAG_COLUMNS
+    ]
     for col in staging_cols:
         nodes.append(
             {
@@ -92,10 +95,18 @@ def build_lineage(
         )
         raw_origin = raw_normalized.get(col)
         if raw_origin:
-            edge_type = "type_cast" if col in cast_decisions else (
-                "normalized" if raw_origin != col else "passthrough"
+            edge_type = (
+                "type_cast"
+                if col in cast_decisions
+                else ("normalized" if raw_origin != col else "passthrough")
             )
-            edges.append({"from": f"raw::{raw_origin}", "to": f"staging::{col}", "type": edge_type})
+            edges.append(
+                {
+                    "from": f"raw::{raw_origin}",
+                    "to": f"staging::{col}",
+                    "type": edge_type,
+                }
+            )
 
     # Mart layer
     for mart_name, mart_df in marts.items():
@@ -115,13 +126,21 @@ def build_lineage(
                 }
             )
             if col in staging_cols:
-                edges.append({"from": f"staging::{col}", "to": node_id, "type": "passthrough"})
+                edges.append(
+                    {"from": f"staging::{col}", "to": node_id, "type": "passthrough"}
+                )
             else:
                 # Heuristic: find a staging column whose name is a substring of this mart column
                 # e.g. staging::streams → mart::release_impact::avg_streams
                 for s_col in staging_cols:
                     if s_col in col:
-                        edges.append({"from": f"staging::{s_col}", "to": node_id, "type": "aggregated"})
+                        edges.append(
+                            {
+                                "from": f"staging::{s_col}",
+                                "to": node_id,
+                                "type": "aggregated",
+                            }
+                        )
                         break
 
     lineage: dict[str, Any] = {

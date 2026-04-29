@@ -79,22 +79,28 @@ def write_metrics_yaml(
                 {
                     "name": col,
                     "label": col.replace("_", " ").title(),
-                    "description": _build_description(col, agg_type, source_col, mart_name),
+                    "description": _build_description(
+                        col, agg_type, source_col, mart_name
+                    ),
                     "type": agg_type,
                     "source_table": mart_name,
                     "source_column": source_col,
                 }
             )
 
-    yaml_lines = ["# Quaero — auto-generated metric definitions", "# Edit descriptions and add filters before using in production.", ""]
+    yaml_lines = [
+        "# Quaero — auto-generated metric definitions",
+        "# Edit descriptions and add filters before using in production.",
+        "",
+    ]
     yaml_lines.append("version: 1")
     yaml_lines.append("metrics:")
 
     for m in metrics:
         yaml_lines += [
             f"  - name: {m['name']}",
-            f"    label: \"{m['label']}\"",
-            f"    description: \"{m['description']}\"",
+            f'    label: "{m["label"]}"',
+            f'    description: "{m["description"]}"',
             f"    type: {m['type']}",
             f"    source_table: {m['source_table']}",
             f"    source_column: {m['source_column']}",
@@ -111,7 +117,7 @@ def _infer_agg_and_source(col_name: str) -> tuple[str, str]:
     """Infer aggregation type and source column from a semantic metric name."""
     for prefix, agg in _AGG_PREFIXES.items():
         if col_name.startswith(prefix):
-            return agg, col_name[len(prefix):]
+            return agg, col_name[len(prefix) :]
     return "sum", col_name
 
 

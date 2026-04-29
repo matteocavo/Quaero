@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from pipelines.dq_scorer import (
     score_dataframe,
@@ -20,6 +18,7 @@ from pipelines.dq_scorer import (
 # ---------------------------------------------------------------------------
 # Unit tests for individual dimension helpers
 # ---------------------------------------------------------------------------
+
 
 class TestCompleteness:
     def test_full_series_scores_100(self):
@@ -84,6 +83,7 @@ class TestFormatScore:
 # Integration tests
 # ---------------------------------------------------------------------------
 
+
 class TestScoreDataframe:
     def test_output_keys(self, tmp_path):
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
@@ -102,12 +102,14 @@ class TestScoreDataframe:
         assert "overall_score" in data
 
     def test_quality_flag_columns_excluded(self, tmp_path):
-        df = pd.DataFrame({
-            "value": [1, 2, 3],
-            "has_nulls": [False, False, True],
-            "invalid_date_parse": [False, False, False],
-            "type_conversion_issue": [False, False, False],
-        })
+        df = pd.DataFrame(
+            {
+                "value": [1, 2, 3],
+                "has_nulls": [False, False, True],
+                "invalid_date_parse": [False, False, False],
+                "type_conversion_issue": [False, False, False],
+            }
+        )
         result = score_dataframe(df, source_name="flags", project_root=tmp_path)
         col_names = [c["column"] for c in result["columns"]]
         assert "has_nulls" not in col_names

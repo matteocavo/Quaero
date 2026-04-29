@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 import pandas as pd
-import pytest
 
 from pipelines.lineage import build_lineage
 
@@ -78,8 +77,7 @@ class TestBuildLineage:
         )
         edges = result["edges"]
         assert any(
-            e["from"] == "raw::revenue" and e["to"] == "staging::revenue"
-            for e in edges
+            e["from"] == "raw::revenue" and e["to"] == "staging::revenue" for e in edges
         )
 
     def test_mart_nodes_created(self, tmp_path):
@@ -97,12 +95,14 @@ class TestBuildLineage:
         assert "mart::mart_trend::avg_streams" in mart_node_ids
 
     def test_quality_flag_columns_excluded_from_staging(self, tmp_path):
-        staging = pd.DataFrame({
-            "revenue": [1.0],
-            "has_nulls": [False],
-            "invalid_date_parse": [False],
-            "type_conversion_issue": [False],
-        })
+        staging = pd.DataFrame(
+            {
+                "revenue": [1.0],
+                "has_nulls": [False],
+                "invalid_date_parse": [False],
+                "type_conversion_issue": [False],
+            }
+        )
         result = build_lineage(
             raw_columns=["revenue"],
             staging_dataframe=staging,
@@ -111,6 +111,8 @@ class TestBuildLineage:
             source_name="t",
             project_root=tmp_path,
         )
-        staging_node_names = [n["name"] for n in result["nodes"] if n["layer"] == "staging"]
+        staging_node_names = [
+            n["name"] for n in result["nodes"] if n["layer"] == "staging"
+        ]
         assert "has_nulls" not in staging_node_names
         assert "revenue" in staging_node_names

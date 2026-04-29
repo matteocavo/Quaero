@@ -77,7 +77,9 @@ def _generate_sql(table_name: str, dataframe: pd.DataFrame) -> str:
         f"CREATE TABLE IF NOT EXISTS {table_name} (",
     ]
 
-    col_defs = [f"    {col} {_infer_pg_type(dataframe[col])}" for col in dataframe.columns]
+    col_defs = [
+        f"    {col} {_infer_pg_type(dataframe[col])}" for col in dataframe.columns
+    ]
     lines.append(",\n".join(col_defs))
     lines.append(");")
     lines.append("")

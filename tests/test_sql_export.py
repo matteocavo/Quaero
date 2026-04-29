@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from pipelines.sql_export import export_marts_to_sql, _infer_pg_type, _format_value
 

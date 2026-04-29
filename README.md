@@ -12,16 +12,42 @@ into clean analytical marts, semantic metrics, and dashboard-ready outputs.
 
 ## Why Quaero Exists
 
-Data analysts often spend more time preparing data than analyzing it.
+Most analytics tools treat data quality as a solved problem. It rarely is.
 
-Real-world datasets frequently arrive as messy exports with inconsistent
-schemas, missing documentation, and manual cleaning steps.
-
-Quaero provides a lightweight analytics pipeline that converts raw
-datasets into structured analytical marts and semantic metrics ready for BI
-tools.
+Real-world datasets arrive as messy exports with inconsistent schemas,
+undocumented columns, and manual cleaning steps that are invisible once applied.
+Quaero makes that messy phase explicit, structured, and traceable — from raw
+source to mart table, every transformation is logged and every column is scored.
 
 Dataset → Question → Analytical Marts → Dashboard
+
+## What's new in v0.3
+
+v0.3 introduces three major additions built around a single principle: the
+data preparation phase should be transparent, not hidden.
+
+**Milestone 1 — Cleaning Review**
+- `pipelines/dq_scorer.py`: per-column Data Quality score (completeness,
+  uniqueness, outlier flag, format consistency) written to
+  `metadata/dq_score_<source>.json` after every run
+- `pipelines/cleaning.py`: every transformation now emits a structured entry
+  in `metadata/cleaning_log_<source>.json` — step name, affected columns,
+  rows impacted, and a human-readable rationale
+
+**Milestone 2 — SQL + BI Integration**
+- `pipelines/sql_export.py`: generates PostgreSQL-ready DDL + INSERT statements
+  for each mart, written to `marts/<mart_name>.sql`
+- `pipelines/pbi_export.py`: generates `metadata/pbi_schema.json` with
+  Power BI-compatible column types, suggested table relationships, and starter
+  DAX measures for every numeric column
+
+**Milestone 3 — Semantic Layer + Lineage**
+- `pipelines/lineage.py`: builds a column-level lineage graph (`raw → staging
+  → mart`) with typed edges (passthrough, normalized, type_cast, aggregated),
+  written to `metadata/lineage.json`
+- `kpi_engine/metrics_yaml.py`: generates dbt-style metric definitions in
+  `metrics/metrics.yml` — name, label, description, aggregation type, and
+  source column for every numeric mart metric
 
 ## Pipeline overview
 
@@ -32,12 +58,12 @@ Dataset ───────▶| Ingestion        |
                          │
                          ▼
                 +------------------+
-                |  Profiling       |
+                | DQ Profiling     |◀── dq_score_<source>.json  [NEW]
                 +------------------+
                          │
                          ▼
                 +------------------+
-                | Cleaning         |
+                | Cleaning         |◀── cleaning_log_<source>.json  [NEW]
                 +------------------+
                          │
                          ▼
@@ -47,29 +73,34 @@ Question ──────▶| Semantic Engine  |
                          │
                          ▼
                 +------------------+
-                | Mart Builder     |
+                | Mart Builder     |◀── marts/<name>.sql  [NEW]
                 +------------------+
                          │
                          ▼
                 +------------------+
-                | Dashboard Engine |
+                | Output Layer     |◀── pbi_schema.json · lineage.json · metrics.yml  [NEW]
                 +------------------+
                          │
                          ▼
-                Dashboard-ready outputs
+                Dashboard-ready outputs (Parquet + SQL + PBI schema)
 ```
+
+↑ Data Lineage Tracker traces every column from raw through staging to mart.
 
 Steps performed automatically:
 
-- dataset profiling
-- data cleaning and normalization
+- dataset profiling and per-column DQ scoring
+- data cleaning and normalization with structured decision log
 - semantic inference of metrics and dimensions
 - optional LLM-assisted inference fallback for ambiguous questions
 - mart table generation
+- PostgreSQL DDL + INSERT export for each mart
+- Power BI schema with suggested relationships and DAX measures
+- column-level data lineage graph
+- dbt-style YAML metric definitions
 - analytics metadata creation
 - anomaly detection
 - dashboard suggestions
-- dashboard-ready analytical marts
 
 ## Project-scoped artifacts
 
@@ -311,16 +342,29 @@ After a successful run, the pipeline produces outputs such as:
 - final summary report at
   `projects/release_impact/metadata/final_summary_report.json`
 
-The `marts/` directory stores the analytical tables used for answering the question and supporting diagnostics. These marts are dashboard-ready and can be loaded directly into Power BI, Tableau, Looker Studio, and other BI tools that support Parquet files.
+The `marts/` directory stores the analytical tables used for answering the
+question and supporting diagnostics. These marts are dashboard-ready and can be
+loaded directly into Power BI, Tableau, Looker Studio, and other BI tools that
+support Parquet files. As of v0.3 each mart is also exported as a `.sql` file.
 
-Common metadata files for the demo include:
+Full list of metadata outputs per project run:
 
-- `projects/release_impact/metadata/release_impact_profile.json`
-- `projects/release_impact/metadata/cleaning_summary_release_impact.json`
-- `projects/release_impact/metadata/analytics_metadata_release_impact.json`
-- `projects/release_impact/metadata/dashboard_suggestions_release_impact.json`
-- `projects/release_impact/metadata/anomaly_report_release_impact.json`
-- `projects/release_impact/metadata/metrics_definitions.json`
+| File | Description |
+|------|-------------|
+| `metadata/<source>_profile.json` | Column-level dataset profile |
+| `metadata/cleaning_summary_<source>.json` | Cleaning stats summary |
+| `metadata/cleaning_log_<source>.json` | **[v0.3]** Structured log of every transformation decision |
+| `metadata/dq_score_<source>.json` | **[v0.3]** Per-column Data Quality score (0–100) |
+| `metadata/pbi_schema.json` | **[v0.3]** Power BI schema with types, relationships, DAX measures |
+| `metadata/lineage.json` | **[v0.3]** Column-level lineage graph (raw → staging → mart) |
+| `metadata/analytics_metadata_<source>.json` | Analytical metadata |
+| `metadata/anomaly_report_<source>.json` | Anomaly detection report |
+| `metadata/dashboard_suggestions_<source>.json` | Dashboard layout suggestions |
+| `metadata/metrics_definitions.json` | Metric definitions (JSON) |
+| `metrics/metrics.yml` | **[v0.3]** dbt-style YAML metric definitions |
+| `marts/<mart_name>.parquet` | Analytical mart (Parquet) |
+| `marts/<mart_name>.sql` | **[v0.3]** PostgreSQL DDL + INSERT export |
+| `metadata/final_summary_report.json` | Full pipeline run summary |
 
 For config-driven projects, `final_summary_report.json` also records:
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 import pandas as pd
-import pytest
 
 from pipelines.pbi_export import export_pbi_schema
 
@@ -42,7 +41,9 @@ class TestExportPbiSchema:
     def test_relationship_suggested_for_shared_column(self, tmp_path):
         df1 = pd.DataFrame({"region": ["IT"], "sales": [100.0]})
         df2 = pd.DataFrame({"region": ["IT"], "costs": [50.0]})
-        result = export_pbi_schema({"mart_a": df1, "mart_b": df2}, project_root=tmp_path)
+        result = export_pbi_schema(
+            {"mart_a": df1, "mart_b": df2}, project_root=tmp_path
+        )
         rel_cols = [r["from_column"] for r in result["suggested_relationships"]]
         assert "region" in rel_cols
 
