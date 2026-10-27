@@ -173,11 +173,11 @@ def _db_transition(
         LOGGER.warning("DB: could not transition run %r → %r: %s", run_id, new_status, exc)
 
 
-def _db_register_mart(project_root: Path, project: str, mart_name: str) -> None:
+def _db_register_mart(project_root: Path, project: str, mart_name: str, mart_path: str) -> None:
     try:
         from db import store
 
-        parquet_path = str(project_root / "projects" / project / "marts" / f"{mart_name}.parquet")
+        parquet_path = str(project_root / mart_path)
         store.upsert_mart(
             project_name=project,
             mart_name=mart_name,
@@ -185,6 +185,23 @@ def _db_register_mart(project_root: Path, project: str, mart_name: str) -> None:
         )
     except Exception as exc:
         LOGGER.warning("DB: could not register mart %r/%r: %s", project, mart_name, exc)
+
+
+def _db_register_marts(project_root: Path, project: str, result: Any) -> None:
+    """Register the Parquet marts listed in ``result["marts"]`` (name -> repo-relative path).
+
+    Only entries whose Parquet file exists on disk are recorded.
+    """
+    marts = result.get("marts") if isinstance(result, dict) else None
+    if not isinstance(marts, dict):
+        return
+    for mart_name, mart_path in marts.items():
+        if (
+            isinstance(mart_path, str)
+            and mart_path.endswith(".parquet")
+            and (project_root / mart_path).is_file()
+        ):
+            _db_register_mart(project_root, project, mart_name, mart_path)
 
 
 # ---------------------------------------------------------------------------
@@ -281,8 +298,7 @@ def execute_run(
         result_keys = list(result.keys()) if isinstance(result, dict) else []
         state["result_keys"] = result_keys
         _db_transition(run_id, "COMPLETED")
-        for mart_name in result_keys:
-            _db_register_mart(project_root, project, mart_name)
+        _db_register_marts(project_root, project, result)
 
     except Exception as exc:
         LOGGER.exception("Run %s failed: %s", run_id, exc)

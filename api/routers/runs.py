@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -113,15 +114,21 @@ async def list_run_history(
     """Return the run history for a project from the SQLite store.
 
     Requires the persistence layer to be initialised (``QUAERO_DB_PATH``
-    or the default ``quaero.db`` in the project root).  Returns an empty
-    list if the database is not available rather than failing.
+    or the default ``quaero.db`` in the project root).  Returns HTTP 503 if
+    the database cannot be read, so an outage is distinguishable from a
+    project with no runs.  ``total`` is the full number of runs for the
+    project; ``runs`` holds at most ``limit`` of them, newest first.
     """
-    try:
-        from db import store
+    from db import store
 
+    try:
         rows = store.list_runs(project_name=project, limit=limit)
-    except Exception:
-        rows = []
+        total = store.count_runs(project_name=project)
+    except sqlite3.Error as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Run history is temporarily unavailable.",
+        ) from exc
 
     from api.schemas import RunHistoryItem
 
@@ -141,4 +148,4 @@ async def list_run_history(
         for r in rows
     ]
 
-    return RunHistoryResponse(project=project, runs=items, total=len(items))
+    return RunHistoryResponse(project=project, runs=items, total=total)

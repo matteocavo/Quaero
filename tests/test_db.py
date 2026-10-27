@@ -368,6 +368,102 @@ class TestConcurrentAccess:
 
 
 # ---------------------------------------------------------------------------
+# Atomic transitions
+# ---------------------------------------------------------------------------
+
+
+class TestAtomicTransitions:
+    def test_concurrent_same_transition_has_single_winner(
+        self, db_with_project: tuple[Path, str]
+    ) -> None:
+        """Only one of many concurrent QUEUED -> RUNNING calls may succeed."""
+        db_path, project = db_with_project
+        for _ in range(5):
+            run_id = str(uuid.uuid4())
+            store.create_run(run_id, project, db_path=db_path)
+            barrier = threading.Barrier(8)
+            outcomes: list[str] = []
+
+            def attempt(
+                run_id: str = run_id,
+                barrier: threading.Barrier = barrier,
+                outcomes: list[str] = outcomes,
+            ) -> None:
+                barrier.wait()
+                try:
+                    store.transition_run(run_id, "RUNNING", db_path=db_path)
+                    outcomes.append("ok")
+                except ValueError:
+                    outcomes.append("rejected")
+
+            threads = [threading.Thread(target=attempt) for _ in range(8)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            assert outcomes.count("ok") == 1
+            assert outcomes.count("rejected") == 7
+
+    def test_concurrent_terminal_transitions_do_not_both_apply(
+        self, db_with_project: tuple[Path, str]
+    ) -> None:
+        """COMPLETED and FAILED race from RUNNING: exactly one wins, status stays consistent."""
+        db_path, project = db_with_project
+        run_id = str(uuid.uuid4())
+        store.create_run(run_id, project, db_path=db_path)
+        store.transition_run(run_id, "RUNNING", db_path=db_path)
+        barrier = threading.Barrier(2)
+        outcomes: dict[str, bool] = {}
+
+        def attempt(target: str) -> None:
+            barrier.wait()
+            try:
+                store.transition_run(run_id, target, error="boom", db_path=db_path)
+                outcomes[target] = True
+            except ValueError:
+                outcomes[target] = False
+
+        threads = [threading.Thread(target=attempt, args=(t,)) for t in ("COMPLETED", "FAILED")]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        winners = [t for t, won in outcomes.items() if won]
+        assert len(winners) == 1
+        assert store.get_run(run_id, db_path)["status"] == winners[0]
+
+    def test_stale_transition_leaves_row_untouched(self, db_with_project: tuple[Path, str]) -> None:
+        db_path, project = db_with_project
+        run_id = str(uuid.uuid4())
+        store.create_run(run_id, project, db_path=db_path)
+        store.transition_run(run_id, "RUNNING", db_path=db_path)
+        store.transition_run(run_id, "COMPLETED", db_path=db_path)
+        before = store.get_run(run_id, db_path)
+
+        with pytest.raises(ValueError):
+            store.transition_run(run_id, "FAILED", error="late", db_path=db_path)
+
+        assert store.get_run(run_id, db_path) == before
+
+
+class TestCountRuns:
+    def test_count_runs_ignores_limit(self, db_with_project: tuple[Path, str]) -> None:
+        db_path, project = db_with_project
+        for _ in range(5):
+            store.create_run(str(uuid.uuid4()), project, db_path=db_path)
+        assert len(store.list_runs(project, limit=2, db_path=db_path)) == 2
+        assert store.count_runs(project, db_path) == 5
+
+    def test_count_runs_project_isolation(self, db_path: Path) -> None:
+        store.register_project("cx", "/x", db_path)
+        store.register_project("cy", "/y", db_path)
+        store.create_run(str(uuid.uuid4()), "cx", db_path=db_path)
+        assert store.count_runs("cy", db_path) == 0
+
+
+# ---------------------------------------------------------------------------
 # Restart recovery
 # ---------------------------------------------------------------------------
 
