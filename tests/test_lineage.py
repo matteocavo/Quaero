@@ -76,9 +76,7 @@ class TestBuildLineage:
             project_root=tmp_path,
         )
         edges = result["edges"]
-        assert any(
-            e["from"] == "raw::revenue" and e["to"] == "staging::revenue" for e in edges
-        )
+        assert any(e["from"] == "raw::revenue" and e["to"] == "staging::revenue" for e in edges)
 
     def test_mart_nodes_created(self, tmp_path):
         staging = pd.DataFrame({"streams": [1.0, 2.0]})
@@ -111,8 +109,6 @@ class TestBuildLineage:
             source_name="t",
             project_root=tmp_path,
         )
-        staging_node_names = [
-            n["name"] for n in result["nodes"] if n["layer"] == "staging"
-        ]
+        staging_node_names = [n["name"] for n in result["nodes"] if n["layer"] == "staging"]
         assert "has_nulls" not in staging_node_names
         assert "revenue" in staging_node_names

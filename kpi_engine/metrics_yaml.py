@@ -25,7 +25,6 @@ from pandas.api.types import is_numeric_dtype
 
 from pipelines.utils import resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 _SKIP_COLUMNS = {
@@ -79,9 +78,7 @@ def write_metrics_yaml(
                 {
                     "name": col,
                     "label": col.replace("_", " ").title(),
-                    "description": _build_description(
-                        col, agg_type, source_col, mart_name
-                    ),
+                    "description": _build_description(col, agg_type, source_col, mart_name),
                     "type": agg_type,
                     "source_table": mart_name,
                     "source_column": source_col,

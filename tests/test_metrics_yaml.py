@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-
 import pandas as pd
 
-from kpi_engine.metrics_yaml import write_metrics_yaml, _infer_agg_and_source
+from kpi_engine.metrics_yaml import _infer_agg_and_source, write_metrics_yaml
 
 
 class TestInferAggAndSource:

@@ -12,7 +12,6 @@ from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_
 from kpi_engine.semantic_contract import build_semantic_metric_name
 from pipelines.utils import resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 TIME_COLUMN_HINTS = ("date", "time", "timestamp", "year", "month", "week")
@@ -360,13 +359,9 @@ def build_integrated_correlation_mart(
     project_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build a long-form correlation mart across integrated metric columns."""
-    available_columns = [
-        column for column in dataset_columns if column in dataframe.columns
-    ]
+    available_columns = [column for column in dataset_columns if column in dataframe.columns]
     if len(available_columns) < 2:
-        raise ValueError(
-            "At least two integrated dataset columns are required for correlation."
-        )
+        raise ValueError("At least two integrated dataset columns are required for correlation.")
 
     correlation = dataframe[available_columns].corr(numeric_only=True)
     mart = (
@@ -452,9 +447,7 @@ def build_integrated_decade_mart(
     working = dataframe.copy()
     numeric_year = pd.to_numeric(working[year_column], errors="coerce")
     working = working[numeric_year.notna()].copy()
-    working["decade"] = (
-        (numeric_year[numeric_year.notna()].astype(int) // 10) * 10
-    ).astype(int)
+    working["decade"] = ((numeric_year[numeric_year.notna()].astype(int) // 10) * 10).astype(int)
 
     grouped = working.groupby("decade", dropna=False)[dataset_column]
     metric_column_name = build_semantic_metric_name(dataset_column, aggregation)
@@ -559,9 +552,7 @@ def _aggregate_by_dimension(
         mart = mart.merge(metric_values, on=dimension_column, how="left")
 
     ascending = ordering == "lowest"
-    sort_column = (
-        "record_count" if metric_column == "record_count" else metric_column_name
-    )
+    sort_column = "record_count" if metric_column == "record_count" else metric_column_name
     return mart.sort_values(
         by=[sort_column, dimension_column],
         ascending=[ascending, True],
@@ -570,9 +561,7 @@ def _aggregate_by_dimension(
 
 def _validate_columns(dataframe: pd.DataFrame, required_columns: list[str]) -> None:
     """Fail fast when a required column is missing from the source DataFrame."""
-    missing_columns = [
-        column for column in required_columns if column not in dataframe.columns
-    ]
+    missing_columns = [column for column in required_columns if column not in dataframe.columns]
     if missing_columns:
         raise ValueError(f"Missing required columns: {missing_columns}")
 

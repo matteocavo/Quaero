@@ -53,9 +53,7 @@ def humanize_name(value: Any) -> str:
     """Convert a project or dataset identifier into a human-readable title."""
     normalized = normalize_name(value)
     parts = normalized.split("_")
-    return " ".join(
-        DISPLAY_TOKEN_OVERRIDES.get(part, part.capitalize()) for part in parts
-    )
+    return " ".join(DISPLAY_TOKEN_OVERRIDES.get(part, part.capitalize()) for part in parts)
 
 
 def format_analysis_title(value: Any) -> str:

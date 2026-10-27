@@ -21,15 +21,20 @@ from kpi_engine.metric_inference import (
     score_metric_candidates,
 )
 from kpi_engine.metrics_definitions import write_metrics_definitions
+from kpi_engine.metrics_yaml import write_metrics_yaml
 from kpi_engine.semantic_contract import infer_metric_unit
 from kpi_engine.suggest_kpis import suggest_kpis
+from pipelines.anomaly_framing import frame_anomalies
 from pipelines.cleaning import clean_dataframe
 from pipelines.dashboard_suggestions import generate_dashboard_suggestions
+from pipelines.dq_scorer import score_dataframe
 from pipelines.ingestion import ingest_dataframe, ingest_input
 from pipelines.integration import (
     build_integrated_master_dataset,
     standardize_dataset_for_integration,
 )
+from pipelines.lineage import build_lineage
+from pipelines.lineage_html import render_lineage_html
 from pipelines.mart_builder import (
     build_catalog_summary_mart,
     build_climate_correlation_mart,
@@ -47,17 +52,11 @@ from pipelines.mart_builder import (
     find_integrated_metric_columns,
     find_time_column,
 )
-from pipelines.project_loaders import load_dataset_from_config
-from pipelines.profiling import profile_dataframe
-from pipelines.utils import format_analysis_title, normalize_name, resolve_project_root
-from pipelines.dq_scorer import score_dataframe
-from pipelines.sql_export import export_marts_to_sql
 from pipelines.pbi_export import export_pbi_schema
-from pipelines.lineage import build_lineage
-from pipelines.lineage_html import render_lineage_html
-from pipelines.anomaly_framing import frame_anomalies
-from kpi_engine.metrics_yaml import write_metrics_yaml
-
+from pipelines.profiling import profile_dataframe
+from pipelines.project_loaders import load_dataset_from_config
+from pipelines.sql_export import export_marts_to_sql
+from pipelines.utils import format_analysis_title, normalize_name, resolve_project_root
 
 LOGGER = logging.getLogger(__name__)
 
@@ -182,9 +181,7 @@ def run_project_from_config(
         mart_results = _build_generic_multi_dataset_marts(
             dataframe=integrated_dataframe,
             dataset_trend_aggregations={
-                normalize_name(dataset["name"]): dataset.get(
-                    "trend_aggregation", "average"
-                )
+                normalize_name(dataset["name"]): dataset.get("trend_aggregation", "average")
                 for dataset in config["datasets"]
             },
             project_root=project_dir,
@@ -235,9 +232,7 @@ def run_project_from_config(
             "config_path": _relative_to_repo(repo_root, config["config_path"]),
             "datasets": dataset_runs,
             "integrated_dataset": {
-                "output_path": _prefixed_path(
-                    project_prefix, integrated_result["output_path"]
-                ),
+                "output_path": _prefixed_path(project_prefix, integrated_result["output_path"]),
                 "dataset_metrics": integrated_result["dataset_metrics"],
             },
             "marts": {
@@ -248,9 +243,7 @@ def run_project_from_config(
                 metrics_definitions, project_prefix, "output_path"
             ),
             "anomaly_detection": anomaly_result["report"],
-            "anomaly_detection_path": _prefixed_path(
-                project_prefix, anomaly_result["report_path"]
-            ),
+            "anomaly_detection_path": _prefixed_path(project_prefix, anomaly_result["report_path"]),
             "analytics_metadata": _with_project_prefix(
                 analytics_metadata, project_prefix, "output_path"
             ),
@@ -278,9 +271,7 @@ def run_project_from_config(
             ordering=query_selection["aggregation"]["ordering"],
             catalog_column=dataset_config.get("catalog_column"),
             provider_column=dataset_config.get("provider_column", "provider"),
-            release_year_column=dataset_config.get(
-                "release_year_column", "release_year"
-            ),
+            release_year_column=dataset_config.get("release_year_column", "release_year"),
             project_root=project_dir,
         )
         mart_results = mart_build["marts"]
@@ -352,9 +343,7 @@ def run_project_from_config(
             "aggregation_intent": query_selection["aggregation"],
             "kpi_suggestions": kpi_result,
             "anomaly_detection": anomaly_result["report"],
-            "anomaly_detection_path": _prefixed_path(
-                project_prefix, anomaly_result["report_path"]
-            ),
+            "anomaly_detection_path": _prefixed_path(project_prefix, anomaly_result["report_path"]),
             "analytics_metadata": _with_project_prefix(
                 analytics_metadata, project_prefix, "output_path"
             ),
@@ -381,9 +370,7 @@ def run_project_from_config(
         repo_root=repo_root,
     )
     results["project_readme"] = project_readme
-    results["final_summary_report"]["summary"]["project_readme_path"] = project_readme[
-        "path"
-    ]
+    results["final_summary_report"]["summary"]["project_readme_path"] = project_readme["path"]
     (project_dir / "metadata" / "final_summary_report.json").write_text(
         json.dumps(results["final_summary_report"]["summary"], indent=2),
         encoding="utf-8",
@@ -482,9 +469,7 @@ def run_pipeline(
     )
 
     # v1 additions: DQ score, SQL export, Power BI schema, lineage, metrics YAML
-    mart_dataframes = {
-        name: r["dataframe"] for name, r in mart_results.items() if "dataframe" in r
-    }
+    mart_dataframes = {name: r["dataframe"] for name, r in mart_results.items() if "dataframe" in r}
     dq_score_result = score_dataframe(
         dataframe=cleaned_dataframe,
         source_name=source_name,
@@ -516,12 +501,8 @@ def run_pipeline(
 
     project_prefix = f"projects/{normalized_source_name}"
     results = {
-        "ingestion": _with_project_prefix(
-            ingestion_result, project_prefix, "snapshot_path"
-        ),
-        "profiling": _with_project_prefix(
-            profile_result, project_prefix, "output_path"
-        ),
+        "ingestion": _with_project_prefix(ingestion_result, project_prefix, "snapshot_path"),
+        "profiling": _with_project_prefix(profile_result, project_prefix, "output_path"),
         "cleaning": _with_project_prefix(
             cleaning_result["summary"],
             project_prefix,
@@ -542,28 +523,18 @@ def run_pipeline(
         "aggregation_intent": query_selection["aggregation"],
         "kpi_suggestions": kpi_result,
         "anomaly_detection": anomaly_result["report"],
-        "anomaly_detection_path": _prefixed_path(
-            project_prefix, anomaly_result["report_path"]
-        ),
+        "anomaly_detection_path": _prefixed_path(project_prefix, anomaly_result["report_path"]),
         "analytics_metadata": _with_project_prefix(
             analytics_metadata, project_prefix, "output_path"
         ),
         "dashboard_suggestions": _with_project_prefix(
             dashboard_result, project_prefix, "output_path"
         ),
-        "dq_score": _with_project_prefix(
-            dq_score_result, project_prefix, "output_path"
-        ),
-        "sql_exports": {
-            name: _prefixed_path(project_prefix, p) for name, p in sql_paths.items()
-        },
-        "pbi_schema": _with_project_prefix(
-            pbi_schema_result, project_prefix, "output_path"
-        ),
+        "dq_score": _with_project_prefix(dq_score_result, project_prefix, "output_path"),
+        "sql_exports": {name: _prefixed_path(project_prefix, p) for name, p in sql_paths.items()},
+        "pbi_schema": _with_project_prefix(pbi_schema_result, project_prefix, "output_path"),
         "lineage": _with_project_prefix(lineage_result, project_prefix, "output_path"),
-        "lineage_html": _with_project_prefix(
-            lineage_html_result, project_prefix, "output_path"
-        ),
+        "lineage_html": _with_project_prefix(lineage_html_result, project_prefix, "output_path"),
         "anomaly_framing_v2": _with_project_prefix(
             anomaly_framing_result, project_prefix, "output_path"
         ),
@@ -590,9 +561,7 @@ def run_pipeline(
         source_path=str(source_path),
     )
     results["project_readme"] = project_readme
-    results["final_summary_report"]["summary"]["project_readme_path"] = project_readme[
-        "path"
-    ]
+    results["final_summary_report"]["summary"]["project_readme_path"] = project_readme["path"]
     (project_dir / "metadata" / "final_summary_report.json").write_text(
         json.dumps(results["final_summary_report"]["summary"], indent=2),
         encoding="utf-8",
@@ -679,9 +648,7 @@ def _build_available_marts(
             }
         )
 
-    if not metric_is_record_count and {release_year_column, metric_column}.issubset(
-        columns
-    ):
+    if not metric_is_record_count and {release_year_column, metric_column}.issubset(columns):
         mart_results["mart_release_impact"] = build_release_impact_mart(
             dataframe=dataframe,
             metric_column=metric_column,
@@ -689,9 +656,7 @@ def _build_available_marts(
             project_root=project_root,
         )
 
-    if not metric_is_record_count and {provider_column, metric_column}.issubset(
-        columns
-    ):
+    if not metric_is_record_count and {provider_column, metric_column}.issubset(columns):
         mart_results["mart_provider_performance"] = build_provider_performance_mart(
             dataframe=dataframe,
             metric_column=metric_column,
@@ -699,9 +664,7 @@ def _build_available_marts(
             project_root=project_root,
         )
 
-    if effective_catalog_column is not None and {effective_catalog_column}.issubset(
-        columns
-    ):
+    if effective_catalog_column is not None and {effective_catalog_column}.issubset(columns):
         mart_results["mart_catalog_summary"] = build_catalog_summary_mart(
             dataframe=dataframe,
             catalog_column=effective_catalog_column,
@@ -776,9 +739,7 @@ def _resolve_query_selection(
         }
     else:
         try:
-            metric_selection = infer_metric_column(
-                question=question, dataframe=dataframe
-            )
+            metric_selection = infer_metric_column(question=question, dataframe=dataframe)
         except ValueError as error:
             metric_error = str(error)
             metric_selection = None
@@ -795,9 +756,7 @@ def _resolve_query_selection(
 
     if dimension_column is not None:
         if dimension_column not in dataframe.columns:
-            raise ValueError(
-                f"Dimension column not found in dataset: {dimension_column}"
-            )
+            raise ValueError(f"Dimension column not found in dataset: {dimension_column}")
         dimension_selection: dict[str, Any] | None = {
             "dimension_column": dimension_column,
             "selection_mode": "user_provided",
@@ -885,14 +844,12 @@ def _write_final_summary_report(
         "metric_unit": infer_metric_unit(results["metric_selection"]["metric_column"]),
         "metric_selection_mode": results["metric_selection"]["selection_mode"],
         "metric_candidates": [
-            candidate["column"]
-            for candidate in results["metric_selection"]["candidates"][:5]
+            candidate["column"] for candidate in results["metric_selection"]["candidates"][:5]
         ],
         "dimension_column": results["dimension_selection"]["dimension_column"],
         "dimension_selection_mode": results["dimension_selection"]["selection_mode"],
         "dimension_candidates": [
-            candidate["column"]
-            for candidate in results["dimension_selection"]["candidates"][:5]
+            candidate["column"] for candidate in results["dimension_selection"]["candidates"][:5]
         ],
         "aggregation_intent": {
             "aggregation": results["aggregation_intent"]["aggregation"],
@@ -1226,8 +1183,7 @@ def _infer_metric_unit_for_readme(
     ):
         return "currency unknown"
     if any(
-        token in normalized_metric
-        for token in ("duration", "time", "seconds", "minutes", "hours")
+        token in normalized_metric for token in ("duration", "time", "seconds", "minutes", "hours")
     ):
         return "time unit unknown"
 
@@ -1289,9 +1245,7 @@ def _build_multi_dataset_metric_line(metric: dict[str, Any]) -> str:
     if dataset_name == "ice_extent":
         return f"- `{dataset_name}` comes from `{metric_column}` and represents Northern Hemisphere sea ice extent from NSIDC monthly observations. Unit: `{unit}`."
 
-    return (
-        f"- `{dataset_name}` comes from `{metric_column}` with inferred unit `{unit}`."
-    )
+    return f"- `{dataset_name}` comes from `{metric_column}` with inferred unit `{unit}`."
 
 
 def _humanize_multi_dataset_unit(unit: str | None) -> str:
@@ -1319,9 +1273,7 @@ def _humanize_multi_dataset_unit(unit: str | None) -> str:
 
 def _is_climate_multi_dataset(summary: dict[str, Any]) -> bool:
     """Detect the first climate multi-dataset use case from integrated metric names."""
-    metric_names = {
-        metric["dataset_name"] for metric in summary.get("dataset_metrics", [])
-    }
+    metric_names = {metric["dataset_name"] for metric in summary.get("dataset_metrics", [])}
     return {
         "temperature_anomaly",
         "co2",
@@ -1338,9 +1290,7 @@ def _build_climate_bi_page_lines(summary: dict[str, Any]) -> list[str]:
         "- temperature anomaly trend"
         if "mart_temperature_anomaly_trend" in available_marts
         else "- warming trend",
-        "- warmest years"
-        if "mart_top_warmest_years" in available_marts
-        else "- ranked warm years",
+        "- warmest years" if "mart_top_warmest_years" in available_marts else "- ranked warm years",
         "- temperature by decade if available"
         if "mart_temperature_by_decade" in available_marts
         else "- temperature by decade",
@@ -1350,9 +1300,7 @@ def _build_climate_bi_page_lines(summary: dict[str, Any]) -> list[str]:
         "- temperature vs co2 relationship",
         "",
         "PAGE 3 — Impacts",
-        "- sea level rise"
-        if "mart_sea_level_trend" in available_marts
-        else "- sea level trend",
+        "- sea level rise" if "mart_sea_level_trend" in available_marts else "- sea level trend",
         "- arctic ice decline"
         if "mart_ice_extent_trend" in available_marts
         else "- ice extent trend",
@@ -1503,9 +1451,7 @@ def _build_profile_column_summary_table(profile: dict[str, Any]) -> str:
     rows = []
 
     for column in profile.get("columns", []):
-        sample_values = ", ".join(
-            str(value) for value in column.get("sample_values", [])
-        )
+        sample_values = ", ".join(str(value) for value in column.get("sample_values", []))
         if not sample_values:
             sample_values = "-"
         rows.append(
@@ -1585,10 +1531,7 @@ def _select_question_primary_mart_name(
     }
 
     if primary_metric and rank_tokens & question_tokens:
-        if (
-            primary_metric == "temperature_anomaly"
-            and "mart_top_warmest_years" in mart_results
-        ):
+        if primary_metric == "temperature_anomaly" and "mart_top_warmest_years" in mart_results:
             return "mart_top_warmest_years"
 
     if primary_metric and trend_tokens & question_tokens:
@@ -1688,12 +1631,8 @@ def _select_question_metric_name(
         metric_tokens = set(metric_phrase.split())
         overlap_score = len(metric_tokens & _tokenize_question(question))
         phrase_present = 1 if metric_phrase in normalized_question else 0
-        phrase_position = (
-            -normalized_question.find(metric_phrase) if phrase_present else -10_000
-        )
-        scored_metrics.append(
-            ((phrase_present, overlap_score, phrase_position), metric_name)
-        )
+        phrase_position = -normalized_question.find(metric_phrase) if phrase_present else -10_000
+        scored_metrics.append(((phrase_present, overlap_score, phrase_position), metric_name))
 
     scored_metrics.sort(key=lambda item: item[0], reverse=True)
     best_score, best_metric = scored_metrics[0]
@@ -1708,9 +1647,7 @@ def _tokenize_question(question: str) -> set[str]:
     return {token for token in normalized.split("_") if token}
 
 
-def _compute_dataset_coverage(
-    dataframe: pd.DataFrame, time_column: str
-) -> dict[str, Any]:
+def _compute_dataset_coverage(dataframe: pd.DataFrame, time_column: str) -> dict[str, Any]:
     """Return min/max year coverage for a dataset based on its time column."""
     if time_column not in dataframe.columns:
         return {"min_year": None, "max_year": None}
@@ -1757,7 +1694,9 @@ def _build_question_focus_line(
         return f"- The question emphasizes ranked outcomes, so `{primary_mart_name}` is treated as the primary narrative mart."
     if "trend" in primary_mart_name:
         return f"- The question emphasizes change over time, so `{primary_mart_name}` is treated as the primary narrative mart."
-    return f"- `{primary_mart_name}` is treated as the primary narrative mart for the stated question."
+    return (
+        f"- `{primary_mart_name}` is treated as the primary narrative mart for the stated question."
+    )
 
 
 def _build_key_result_table(dataframe: pd.DataFrame | None, limit: int = 5) -> str:
@@ -1824,9 +1763,7 @@ def _build_reproduce_command(
     ]
 
     if metric_selection["selection_mode"] == "user_provided":
-        command_parts.extend(
-            ["--metric-column", _shell_quote(metric_selection["metric_column"])]
-        )
+        command_parts.extend(["--metric-column", _shell_quote(metric_selection["metric_column"])])
     if dimension_selection["selection_mode"] == "user_provided":
         command_parts.extend(
             [
@@ -1853,12 +1790,13 @@ def _classify_profile_columns(
     for column in profile.get("columns", []):
         dtype = str(column.get("dtype", "")).lower()
         is_datetime_column = _is_datetime_profile_column(column)
-        if kind == "numeric" and _is_numeric_dtype_name(dtype):
-            columns.append(column["column_name"])
-        elif kind == "datetime" and is_datetime_column:
-            columns.append(column["column_name"])
-        elif kind == "categorical" and not (
-            _is_numeric_dtype_name(dtype) or is_datetime_column
+        if (
+            kind == "numeric"
+            and _is_numeric_dtype_name(dtype)
+            or kind == "datetime"
+            and is_datetime_column
+            or kind == "categorical"
+            and not (_is_numeric_dtype_name(dtype) or is_datetime_column)
         ):
             columns.append(column["column_name"])
     return columns
@@ -1901,9 +1839,7 @@ def _is_datetime_profile_column(column: dict[str, Any]) -> bool:
     ):
         return True
 
-    sample_values = [
-        value for value in column.get("sample_values", []) if value not in (None, "")
-    ]
+    sample_values = [value for value in column.get("sample_values", []) if value not in (None, "")]
     if not sample_values:
         return False
 
@@ -1963,14 +1899,8 @@ def _load_project_config(
     if not resolved_path.is_absolute():
         resolved_path = (repo_root / resolved_path).resolve()
     payload = json.loads(resolved_path.read_text(encoding="utf-8"))
-    if (
-        "project" not in payload
-        or "datasets" not in payload
-        or "question" not in payload
-    ):
-        raise ValueError(
-            "project_config.json must include project, question, and datasets."
-        )
+    if "project" not in payload or "datasets" not in payload or "question" not in payload:
+        raise ValueError("project_config.json must include project, question, and datasets.")
     if not payload["datasets"]:
         raise ValueError("project_config.json must define at least one dataset.")
     payload["config_path"] = resolved_path
@@ -2123,9 +2053,7 @@ def _write_config_project_final_summary_report(
                 "time_column": dataset["time_column"],
                 "metric_column": dataset["metric_column"],
                 "unit": dataset["unit"],
-                "coverage": dataset.get(
-                    "coverage", {"min_year": None, "max_year": None}
-                ),
+                "coverage": dataset.get("coverage", {"min_year": None, "max_year": None}),
                 "loader_warnings": dataset.get("loader_warnings", []),
                 "raw_snapshot_path": dataset["raw_snapshot_path"],
                 "profile_path": dataset["profile_path"],
@@ -2142,9 +2070,7 @@ def _write_config_project_final_summary_report(
     }
 
     if results["project_mode"] == "multi_dataset":
-        summary["integrated_dataset_path"] = results["integrated_dataset"][
-            "output_path"
-        ]
+        summary["integrated_dataset_path"] = results["integrated_dataset"]["output_path"]
         summary["dataset_metrics"] = results["integrated_dataset"]["dataset_metrics"]
     else:
         summary.update(
@@ -2154,18 +2080,14 @@ def _write_config_project_final_summary_report(
                 "cleaning_metadata_path": results["cleaning"]["metadata_path"],
                 "skipped_marts": results["skipped_marts"],
                 "metric_column": results["metric_selection"]["metric_column"],
-                "metric_unit": infer_metric_unit(
-                    results["metric_selection"]["metric_column"]
-                ),
+                "metric_unit": infer_metric_unit(results["metric_selection"]["metric_column"]),
                 "metric_selection_mode": results["metric_selection"]["selection_mode"],
                 "metric_candidates": [
                     candidate["column"]
                     for candidate in results["metric_selection"]["candidates"][:5]
                 ],
                 "dimension_column": results["dimension_selection"]["dimension_column"],
-                "dimension_selection_mode": results["dimension_selection"][
-                    "selection_mode"
-                ],
+                "dimension_selection_mode": results["dimension_selection"]["selection_mode"],
                 "dimension_candidates": [
                     candidate["column"]
                     for candidate in results["dimension_selection"]["candidates"][:5]
@@ -2174,9 +2096,7 @@ def _write_config_project_final_summary_report(
                     "aggregation": results["aggregation_intent"]["aggregation"],
                     "ordering": results["aggregation_intent"]["ordering"],
                 },
-                "aggregation_selection_mode": results["aggregation_intent"][
-                    "selection_mode"
-                ],
+                "aggregation_selection_mode": results["aggregation_intent"]["selection_mode"],
                 "primary_kpi": results["kpi_suggestions"]["primary_kpi"],
             }
         )
@@ -2206,9 +2126,7 @@ def _write_config_project_readme(
     key_result_table = _build_key_result_table(
         primary_mart["dataframe"] if primary_mart is not None else None
     )
-    reproduce_command = (
-        f'python -m app.main --config "{summary["config_path"]}" --project-root "."'
-    )
+    reproduce_command = f'python -m app.main --config "{summary["config_path"]}" --project-root "."'
 
     if summary["project_mode"] == "multi_dataset":
         dataset_lines = [
@@ -2221,8 +2139,7 @@ def _write_config_project_readme(
             for warning in dataset.get("loader_warnings", [])
         ]
         metric_lines = [
-            _build_multi_dataset_metric_line(metric)
-            for metric in summary["dataset_metrics"]
+            _build_multi_dataset_metric_line(metric) for metric in summary["dataset_metrics"]
         ]
         integrated_columns = ["year"] + [
             metric["dataset_name"] for metric in summary["dataset_metrics"]
@@ -2234,13 +2151,9 @@ def _write_config_project_readme(
         ]
         if summary["mart_paths"]:
             artifact_lines.append("- Mart tables:")
-            artifact_lines.extend(
-                [f"  - `{path}`" for path in summary["mart_paths"].values()]
-            )
+            artifact_lines.extend([f"  - `{path}`" for path in summary["mart_paths"].values()])
         recommended_bi_lines = (
-            _build_climate_bi_page_lines(summary)
-            if _is_climate_multi_dataset(summary)
-            else []
+            _build_climate_bi_page_lines(summary) if _is_climate_multi_dataset(summary) else []
         )
         coverage_note_lines = _build_data_coverage_note_lines(summary)
         readme_content = (
@@ -2462,7 +2375,5 @@ def _with_project_prefix(
     """Return a shallow copy with selected path fields scoped to the project folder."""
     scoped_payload = dict(payload)
     for path_key in path_keys:
-        scoped_payload[path_key] = _prefixed_path(
-            project_prefix, scoped_payload[path_key]
-        )
+        scoped_payload[path_key] = _prefixed_path(project_prefix, scoped_payload[path_key])
     return scoped_payload

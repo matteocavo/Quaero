@@ -30,7 +30,6 @@ from pandas.api.types import (
 
 from pipelines.utils import resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 _SKIP_COLUMNS = {"has_nulls", "invalid_date_parse", "type_conversion_issue"}

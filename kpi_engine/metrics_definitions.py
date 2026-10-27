@@ -12,7 +12,6 @@ import pandas as pd
 from kpi_engine.semantic_contract import infer_metric_unit, parse_semantic_metric_column
 from pipelines.utils import normalize_name, resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 NON_METRIC_COLUMNS = {
@@ -185,9 +184,7 @@ def _build_formula_description(
         if mart_name.endswith("_trend"):
             return "Count of aligned records contributing to each yearly aggregate."
         if mart_name.endswith("_by_decade"):
-            return (
-                "Count of aligned yearly records contributing to each decade aggregate."
-            )
+            return "Count of aligned yearly records contributing to each decade aggregate."
         if mart_name == "mart_top_warmest_years":
             return "Count of aligned records contributing to each ranked warmest year."
         return f"Count of records represented in `{mart_name}`."
@@ -224,6 +221,8 @@ def _describe_source_metric(source_metric_column: str | None) -> str:
 def _build_correlation_description(mart_name: str) -> str:
     """Describe correlation marts in business-readable language."""
     if mart_name == "mart_climate_correlation":
-        return "Pearson correlation coefficient between paired climate metrics across aligned years."
+        return (
+            "Pearson correlation coefficient between paired climate metrics across aligned years."
+        )
 
     return "Pearson correlation coefficient between paired numeric metrics across the aligned integrated dataset."

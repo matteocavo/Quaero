@@ -8,7 +8,6 @@ from typing import Any
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
-
 METRIC_HINTS = ("streams", "sales", "revenue", "amount", "value", "score", "count")
 DIMENSION_HINTS = ("year", "date", "provider", "artist", "category", "type", "region")
 
@@ -26,14 +25,10 @@ def suggest_kpis(
     dataset_sample_rows = sample_rows or _build_sample_rows(dataframe)
 
     question_tokens = _tokenize(question)
-    numeric_columns = [
-        column["name"] for column in dataset_schema if column["is_numeric"]
-    ]
+    numeric_columns = [column["name"] for column in dataset_schema if column["is_numeric"]]
     dimension_columns = _rank_dimension_columns(dataset_schema, question_tokens)
 
-    primary_measure = metric_column or _select_primary_measure(
-        numeric_columns, question_tokens
-    )
+    primary_measure = metric_column or _select_primary_measure(numeric_columns, question_tokens)
     primary_kpi = _build_primary_kpi_name(
         primary_measure,
         question_tokens,
@@ -119,9 +114,7 @@ def _build_primary_kpi_name(
     if primary_measure is None:
         return "record_count"
 
-    resolved_aggregation = aggregation_intent or _resolve_aggregation_from_question(
-        question_tokens
-    )
+    resolved_aggregation = aggregation_intent or _resolve_aggregation_from_question(question_tokens)
     if primary_measure == "record_count":
         return "record_count"
 

@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 
-from pipelines.lineage_html import render_lineage_html, _sanitize_id, _build_mermaid
-
+from pipelines.lineage_html import _build_mermaid, _sanitize_id, render_lineage_html
 
 # ---------------------------------------------------------------------------
 # Helpers

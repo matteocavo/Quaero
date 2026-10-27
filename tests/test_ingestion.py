@@ -95,9 +95,7 @@ def test_ingest_input_local_parquet_creates_snapshot_and_manifest(
     assert manifest["source_file"] == str(parquet_path.resolve())
 
     snapshot_frame = pd.read_parquet(snapshot_path)
-    assert snapshot_frame.to_dict(orient="records") == source_frame.to_dict(
-        orient="records"
-    )
+    assert snapshot_frame.to_dict(orient="records") == source_frame.to_dict(orient="records")
 
 
 def test_detect_source_type_and_location_for_local_paths_and_urls() -> None:
@@ -113,9 +111,7 @@ def test_detect_source_type_and_location_for_local_paths_and_urls() -> None:
     assert _detect_source_location_type("https://example.com/path/data.csv") == "url"
     assert _detect_source_type("https://example.com/path/data.csv") == "csv"
 
-    assert (
-        _detect_source_location_type("https://example.com/path/data.parquet") == "url"
-    )
+    assert _detect_source_location_type("https://example.com/path/data.parquet") == "url"
     assert _detect_source_type("https://example.com/path/data.parquet") == "parquet"
 
 
@@ -177,18 +173,14 @@ def test_ingest_input_reads_parquet_url_without_network_dependency(
     assert manifest["source_location_type"] == "url"
 
     snapshot_frame = pd.read_parquet(snapshot_path)
-    assert snapshot_frame.to_dict(orient="records") == dataframe.to_dict(
-        orient="records"
-    )
+    assert snapshot_frame.to_dict(orient="records") == dataframe.to_dict(orient="records")
 
 
 def test_ingest_input_treats_file_uri_as_local_path(tmp_path: Path) -> None:
     csv_path = tmp_path / "sales_export.csv"
     csv_path.write_text("customer_id,amount\n1,10.5\n", encoding="utf-8")
 
-    manifest = ingest_input(
-        source_path=csv_path.resolve().as_uri(), project_root=tmp_path
-    )
+    manifest = ingest_input(source_path=csv_path.resolve().as_uri(), project_root=tmp_path)
 
     assert manifest["source_location_type"] == "local"
     assert manifest["source_type"] == "csv"

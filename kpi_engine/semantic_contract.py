@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 AGGREGATION_PREFIXES = {
     "average": "avg",
     "sum": "total",
@@ -44,11 +43,7 @@ def infer_metric_unit(source_column: str | None) -> str | None:
         return "count"
     if lowered == "co2" or "co2" in lowered:
         return "million_tonnes_co2"
-    if (
-        lowered == "gdp"
-        or lowered.endswith("_gdp")
-        or "gross_domestic_product" in lowered
-    ):
+    if lowered == "gdp" or lowered.endswith("_gdp") or "gross_domestic_product" in lowered:
         return "current_usd"
     if "renewable_share" in lowered:
         return "percent"
@@ -58,11 +53,7 @@ def infer_metric_unit(source_column: str | None) -> str | None:
         return "percent"
     if "unemployment" in lowered:
         return "percent"
-    if (
-        lowered == "total_artists"
-        or lowered.endswith("_artists")
-        or "artists_count" in lowered
-    ):
+    if lowered == "total_artists" or lowered.endswith("_artists") or "artists_count" in lowered:
         return "count"
     if "revenue" in lowered:
         return "usd"

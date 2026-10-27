@@ -8,6 +8,8 @@ import logging
 
 from app.pipeline_runner import (
     run_pipeline as run_dataset_pipeline,
+)
+from app.pipeline_runner import (
     run_project_from_config,
 )
 
@@ -111,9 +113,7 @@ def main() -> None:
         )
     else:
         if not args.source_name or not args.question:
-            parser.error(
-                "--source-name and --question are required when running a single dataset."
-            )
+            parser.error("--source-name and --question are required when running a single dataset.")
         if (
             any(
                 value is not None

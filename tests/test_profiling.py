@@ -28,13 +28,10 @@ def test_profile_dataframe_writes_metadata_and_returns_profile(tmp_path: Path) -
     assert profile["column_count"] == 3
 
     saved_profile = json.loads(profile_path.read_text(encoding="utf-8"))
-    assert saved_profile == {
-        key: value for key, value in profile.items() if key != "output_path"
-    }
+    assert saved_profile == {key: value for key, value in profile.items() if key != "output_path"}
 
     columns_by_name = {
-        column_profile["column_name"]: column_profile
-        for column_profile in profile["columns"]
+        column_profile["column_name"]: column_profile for column_profile in profile["columns"]
     }
 
     assert columns_by_name["order_id"]["dtype"] == "int64"

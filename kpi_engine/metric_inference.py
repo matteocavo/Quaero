@@ -12,7 +12,6 @@ from pandas.api.types import (
     is_numeric_dtype,
 )
 
-
 METRIC_HINTS = (
     "amount",
     "total",
@@ -83,9 +82,7 @@ def infer_metric_column(
         return {
             "metric_column": "record_count",
             "selection_mode": "auto_inferred",
-            "candidates": [
-                {"column": "record_count", "score": ("count", "question_intent", None)}
-            ],
+            "candidates": [{"column": "record_count", "score": ("count", "question_intent", None)}],
         }
 
     candidates = _score_metric_candidates(question=question, dataframe=dataframe)
@@ -115,13 +112,9 @@ def infer_metric_column(
     if api_key:
         from kpi_engine.llm_inference import infer_column_with_llm
 
-        schema_with_types = [
-            f"{col} ({dataframe[col].dtype})" for col in dataframe.columns
-        ]
+        schema_with_types = [f"{col} ({dataframe[col].dtype})" for col in dataframe.columns]
         try:
-            llm_col = infer_column_with_llm(
-                question, schema_with_types, "numeric metric", api_key
-            )
+            llm_col = infer_column_with_llm(question, schema_with_types, "numeric metric", api_key)
         except Exception:
             llm_col = None
         if llm_col in dataframe.columns:
@@ -160,9 +153,7 @@ def infer_dimension_column(
     top_score = top_candidate["score"]
     second_score = candidates[1]["score"] if len(candidates) > 1 else None
 
-    is_strong = (
-        len(candidates) == 1 or top_score[0] > 0 or top_score[1] > 0 or top_score[3] > 1
-    )
+    is_strong = len(candidates) == 1 or top_score[0] > 0 or top_score[1] > 0 or top_score[3] > 1
     is_unique = second_score is None or top_score > second_score
 
     if is_strong and is_unique:
@@ -178,9 +169,7 @@ def infer_dimension_column(
     if api_key:
         from kpi_engine.llm_inference import infer_column_with_llm
 
-        schema_with_types = [
-            f"{col} ({dataframe[col].dtype})" for col in dataframe.columns
-        ]
+        schema_with_types = [f"{col} ({dataframe[col].dtype})" for col in dataframe.columns]
         try:
             llm_col = infer_column_with_llm(
                 question, schema_with_types, "grouping dimension", api_key
@@ -206,10 +195,10 @@ def infer_aggregation_intent(question: str) -> dict[str, str]:
     """Infer a small aggregation intent summary from a question."""
     question_tokens = _tokenize(question)
 
-    if {"count", "number"} & question_tokens:
-        aggregation = "count"
-    elif {"most", "largest"} & question_tokens and not (
-        {"average", "avg", "mean", "total", "sum"} & question_tokens
+    if (
+        {"count", "number"} & question_tokens
+        or {"most", "largest"} & question_tokens
+        and not ({"average", "avg", "mean", "total", "sum"} & question_tokens)
     ):
         aggregation = "count"
     elif {"total", "sum"} & question_tokens:
@@ -245,9 +234,7 @@ def score_metric_candidates(
         column_tokens = _tokenize(column_name)
         question_overlap = len(column_tokens & question_tokens)
         hint_overlap = sum(
-            1
-            for hint in METRIC_HINTS
-            if hint in question_tokens and hint in column_tokens
+            1 for hint in METRIC_HINTS if hint in question_tokens and hint in column_tokens
         )
         column_hint_score = sum(1 for hint in METRIC_HINTS if hint in column_tokens)
 
@@ -288,9 +275,7 @@ def score_dimension_candidates(
         question_overlap = len(column_tokens & question_tokens)
         exact_name_match = 1 if column_name.lower() in question_tokens else 0
         hint_overlap = sum(
-            1
-            for hint in DIMENSION_HINTS
-            if hint in question_tokens and hint in column_tokens
+            1 for hint in DIMENSION_HINTS if hint in question_tokens and hint in column_tokens
         )
         type_score = _dimension_type_score(
             series=series,

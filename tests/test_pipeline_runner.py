@@ -42,17 +42,12 @@ def test_run_pipeline_executes_modules_in_sequence(tmp_path: Path) -> None:
     assert "mart_release_impact" in result["marts"]
     assert result["kpi_suggestions"]["primary_kpi"] == "avg_streams"
     assert result["anomaly_detection"]["source"] == "release_impact"
-    assert (
-        result["lineage_html"]["output_path"]
-        == "projects/release_impact/metadata/lineage.html"
-    )
+    assert result["lineage_html"]["output_path"] == "projects/release_impact/metadata/lineage.html"
     assert (
         result["anomaly_framing_v2"]["output_path"]
         == "projects/release_impact/metadata/anomaly_report_v2_release_impact.json"
     )
-    assert (
-        tmp_path / "projects" / "release_impact" / "metadata" / "lineage.html"
-    ).exists()
+    assert (tmp_path / "projects" / "release_impact" / "metadata" / "lineage.html").exists()
     assert (
         tmp_path
         / "projects"
@@ -67,9 +62,7 @@ def test_run_pipeline_executes_modules_in_sequence(tmp_path: Path) -> None:
         == "Which release years generate the strongest average streams?"
     )
     assert result["dashboard_suggestions"]["primary_mart"] == "mart_question_answer"
-    assert result["ingestion"]["snapshot_path"].startswith(
-        "projects/release_impact/raw/snapshot_"
-    )
+    assert result["ingestion"]["snapshot_path"].startswith("projects/release_impact/raw/snapshot_")
     assert (
         result["metrics_definitions"]["output_path"]
         == "projects/release_impact/metadata/metrics_definitions.json"
@@ -102,33 +95,20 @@ def test_run_pipeline_executes_modules_in_sequence(tmp_path: Path) -> None:
         result["final_summary_report"]["summary"]["anomaly_report_v2_path"]
         == "projects/release_impact/metadata/anomaly_report_v2_release_impact.json"
     )
-    assert result["cleaning"]["output_path"].startswith(
-        "projects/release_impact/staging/staging_"
-    )
+    assert result["cleaning"]["output_path"].startswith("projects/release_impact/staging/staging_")
     assert result["final_summary_report"]["summary"]["metric_column"] == "streams"
     assert result["final_summary_report"]["summary"]["metric_unit"] is None
-    assert (
-        result["final_summary_report"]["summary"]["metric_selection_mode"]
-        == "user_provided"
-    )
+    assert result["final_summary_report"]["summary"]["metric_selection_mode"] == "user_provided"
     assert result["final_summary_report"]["summary"]["metric_candidates"] == ["streams"]
-    assert (
-        result["final_summary_report"]["summary"]["dimension_column"] == "release_year"
-    )
-    assert (
-        result["final_summary_report"]["summary"]["dimension_selection_mode"]
-        == "user_provided"
-    )
-    assert result["final_summary_report"]["summary"]["dimension_candidates"] == [
-        "release_year"
-    ]
+    assert result["final_summary_report"]["summary"]["dimension_column"] == "release_year"
+    assert result["final_summary_report"]["summary"]["dimension_selection_mode"] == "user_provided"
+    assert result["final_summary_report"]["summary"]["dimension_candidates"] == ["release_year"]
     assert result["final_summary_report"]["summary"]["aggregation_intent"] == {
         "aggregation": "average",
         "ordering": "highest",
     }
     assert (
-        result["final_summary_report"]["summary"]["aggregation_selection_mode"]
-        == "auto_inferred"
+        result["final_summary_report"]["summary"]["aggregation_selection_mode"] == "auto_inferred"
     )
     assert result["final_summary_report"]["path"] == (
         "projects/release_impact/metadata/final_summary_report.json"
@@ -138,13 +118,9 @@ def test_run_pipeline_executes_modules_in_sequence(tmp_path: Path) -> None:
         == "projects/release_impact/README.md"
     )
     assert result["project_readme"]["path"] == "projects/release_impact/README.md"
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
     assert "## Question" in project_readme
-    assert (
-        "Which release years generate the strongest average streams?" in project_readme
-    )
+    assert "Which release years generate the strongest average streams?" in project_readme
     assert "## Dataset Overview" in project_readme
     assert "## Dataset Statistics" in project_readme
     assert "## Dataset Description" in project_readme
@@ -158,9 +134,7 @@ def test_run_pipeline_executes_modules_in_sequence(tmp_path: Path) -> None:
     assert "- Detected numeric columns: `release_year`, `streams`" in project_readme
     assert "- Detected categorical columns: `provider`, `catalog`" in project_readme
     assert "- Detected datetime columns: none" in project_readme
-    assert (
-        "| Column | Type | Null % | Unique Values | Example Values |" in project_readme
-    )
+    assert "| Column | Type | Null % | Unique Values | Example Values |" in project_readme
     assert "| release_year | integer | 0% | 3 |" in project_readme
     assert "| provider | string | 0% | 3 |" in project_readme
     assert "| streams | integer | 0% | 4 |" in project_readme
@@ -172,25 +146,15 @@ def test_run_pipeline_executes_modules_in_sequence(tmp_path: Path) -> None:
     assert "`streams`" in project_readme
     assert "`release_year`" in project_readme
     assert (
-        "The analysis combines numeric measures such as `release_year`, `streams`"
-        in project_readme
+        "The analysis combines numeric measures such as `release_year`, `streams`" in project_readme
     )
-    assert (
-        "This analysis uses the `streams` column and the `average` aggregation"
-        in project_readme
-    )
+    assert "This analysis uses the `streams` column and the `average` aggregation" in project_readme
     assert "- Metric column: `streams`" in project_readme
     assert "- Aggregation: `average`" in project_readme
     assert "- Unit: `unknown`" in project_readme
-    assert (
-        "| provider | Provider or platform associated with the record |"
-        in project_readme
-    )
+    assert "| provider | Provider or platform associated with the record |" in project_readme
     assert "mart_release_impact" in project_readme
-    assert (
-        "- Lineage graph: `projects/release_impact/metadata/lineage.html`"
-        in project_readme
-    )
+    assert "- Lineage graph: `projects/release_impact/metadata/lineage.html`" in project_readme
     assert (
         "- Anomaly framing v2: `projects/release_impact/metadata/anomaly_report_v2_release_impact.json`"
         in project_readme
@@ -222,15 +186,9 @@ def test_run_pipeline_auto_infers_metric_column_when_not_provided(
     )
 
     assert result["final_summary_report"]["summary"]["metric_column"] == "trip_distance"
-    assert (
-        result["final_summary_report"]["summary"]["metric_selection_mode"]
-        == "auto_inferred"
-    )
+    assert result["final_summary_report"]["summary"]["metric_selection_mode"] == "auto_inferred"
     assert result["final_summary_report"]["summary"]["dimension_column"] == "provider"
-    assert (
-        result["final_summary_report"]["summary"]["dimension_selection_mode"]
-        == "auto_inferred"
-    )
+    assert result["final_summary_report"]["summary"]["dimension_selection_mode"] == "auto_inferred"
     assert result["final_summary_report"]["summary"]["metric_candidates"][:2] == [
         "trip_distance",
         "fare_amount",
@@ -269,23 +227,11 @@ def test_run_pipeline_manual_metric_override_still_wins(
     )
 
     assert result["final_summary_report"]["summary"]["metric_column"] == "fare_amount"
-    assert (
-        result["final_summary_report"]["summary"]["metric_selection_mode"]
-        == "user_provided"
-    )
-    assert result["final_summary_report"]["summary"]["metric_candidates"] == [
-        "fare_amount"
-    ]
-    assert (
-        result["final_summary_report"]["summary"]["dimension_column"] == "release_year"
-    )
-    assert (
-        result["final_summary_report"]["summary"]["dimension_selection_mode"]
-        == "user_provided"
-    )
-    assert result["final_summary_report"]["summary"]["dimension_candidates"] == [
-        "release_year"
-    ]
+    assert result["final_summary_report"]["summary"]["metric_selection_mode"] == "user_provided"
+    assert result["final_summary_report"]["summary"]["metric_candidates"] == ["fare_amount"]
+    assert result["final_summary_report"]["summary"]["dimension_column"] == "release_year"
+    assert result["final_summary_report"]["summary"]["dimension_selection_mode"] == "user_provided"
+    assert result["final_summary_report"]["summary"]["dimension_candidates"] == ["release_year"]
 
 
 def test_run_pipeline_raises_clear_error_for_ambiguous_metric_and_dimension(
@@ -370,9 +316,7 @@ def test_run_pipeline_reports_skipped_marts_for_virtual_record_count(
     assert "record_count" in skipped_marts[0]["reason"]
     assert result["final_summary_report"]["summary"]["primary_kpi"] == "record_count"
     assert result["final_summary_report"]["summary"]["skipped_marts"] == skipped_marts
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
     assert "## Reproducibility" in project_readme
     assert "--metric-column" not in project_readme
 
@@ -400,9 +344,7 @@ def test_project_readme_includes_manual_overrides_in_repro_command(
         project_root=tmp_path,
     )
 
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
     assert '--metric-column "fare_amount"' in project_readme
     assert '--dimension-column "release_year"' in project_readme
     assert '--project-root "."' in project_readme
@@ -427,9 +369,7 @@ def test_project_readme_profiles_datetime_columns_dynamically(tmp_path: Path) ->
         project_root=tmp_path,
     )
 
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
 
     assert "- Dataset name: `events`" in project_readme
     assert "- Detected numeric columns: `trip_distance`" in project_readme
@@ -444,12 +384,7 @@ def test_project_readme_profiles_datetime_columns_dynamically(tmp_path: Path) ->
 def test_project_readme_explains_global_temperature_metric(tmp_path: Path) -> None:
     csv_path = tmp_path / "global_temperature.csv"
     csv_path.write_text(
-        (
-            "Source,Year,Mean\n"
-            "GISTEMP,2023-01,1.10\n"
-            "gcag,2023-02,1.20\n"
-            "GISTEMP,2024-01,1.30\n"
-        ),
+        ("Source,Year,Mean\nGISTEMP,2023-01,1.10\ngcag,2023-02,1.20\nGISTEMP,2024-01,1.30\n"),
         encoding="utf-8",
     )
 
@@ -460,9 +395,7 @@ def test_project_readme_explains_global_temperature_metric(tmp_path: Path) -> No
         project_root=tmp_path,
     )
 
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
 
     assert "# Global Temperature Analysis" in project_readme
     assert "## Metric Interpretation" in project_readme
@@ -472,18 +405,14 @@ def test_project_readme_explains_global_temperature_metric(tmp_path: Path) -> No
     assert "| Year | datetime | 0% |" in project_readme
     assert "- Metric column: `mean`" in project_readme
     assert "- Aggregation: `average`" in project_readme
-    assert (
-        "- Unit: `°C temperature anomaly relative to the baseline.`" in project_readme
-    )
+    assert "- Unit: `°C temperature anomaly relative to the baseline.`" in project_readme
     assert "Positive values indicate warmer-than-baseline periods" in project_readme
     assert "## Column Meaning" in project_readme
     assert "| Year | Year and month of observation |" in project_readme
     assert "| Source | Temperature dataset source |" in project_readme
     assert "| Mean | Global temperature anomaly in °C |" in project_readme
     assert "## Dataset Description" in project_readme
-    assert (
-        "This dataset contains temperature observations across time." in project_readme
-    )
+    assert "This dataset contains temperature observations across time." in project_readme
 
 
 def test_run_project_from_config_builds_integrated_dataset_and_climate_marts(
@@ -528,11 +457,7 @@ def test_run_project_from_config_builds_integrated_dataset_and_climate_marts(
     assert {dataset["name"] for dataset in result["datasets"]} == set(datasets)
     for dataset_name in datasets:
         assert (
-            tmp_path
-            / "projects"
-            / "climate_change_analysis"
-            / "raw"
-            / f"{dataset_name}.parquet"
+            tmp_path / "projects" / "climate_change_analysis" / "raw" / f"{dataset_name}.parquet"
         ).exists()
     expected_marts = {
         "mart_metric_correlation",
@@ -553,12 +478,8 @@ def test_run_project_from_config_builds_integrated_dataset_and_climate_marts(
     assert result["final_summary_report"]["summary"]["question"] == (
         "How do climate indicators change over time?"
     )
-    assert result["final_summary_report"]["summary"]["primary_mart"] == (
-        "mart_temperature_trend"
-    )
-    assert result["final_summary_report"]["summary"]["primary_kpi"] == (
-        "avg_temperature"
-    )
+    assert result["final_summary_report"]["summary"]["primary_mart"] == ("mart_temperature_trend")
+    assert result["final_summary_report"]["summary"]["primary_kpi"] == ("avg_temperature")
     coverage_by_dataset = {
         dataset["name"]: dataset["coverage"]
         for dataset in result["final_summary_report"]["summary"]["datasets"]
@@ -569,9 +490,7 @@ def test_run_project_from_config_builds_integrated_dataset_and_climate_marts(
         "sea_level": {"min_year": 2020, "max_year": 2022},
         "ice_extent": {"min_year": 2020, "max_year": 2022},
     }
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
     assert "# Climate Change Analysis" in project_readme
     assert "Config-driven project with `4` datasets" in project_readme
     assert "## Question" in project_readme
@@ -579,14 +498,9 @@ def test_run_project_from_config_builds_integrated_dataset_and_climate_marts(
     assert "The question emphasizes change over time" in project_readme
     assert "## Data Coverage" in project_readme
     assert "| temperature | 2020 | 2022 |" in project_readme
-    assert (
-        "standardized into `year`, `source_metric_value`, and `dataset_name`"
-        in project_readme
-    )
+    assert "standardized into `year`, `source_metric_value`, and `dataset_name`" in project_readme
     assert "master_dataset.parquet" in project_readme
-    integrated_dataframe = pd.read_parquet(
-        tmp_path / result["integrated_dataset"]["output_path"]
-    )
+    integrated_dataframe = pd.read_parquet(tmp_path / result["integrated_dataset"]["output_path"])
     assert list(integrated_dataframe.columns) == [
         "year",
         "co2",
@@ -641,34 +555,24 @@ def test_run_project_from_config_builds_generic_marts_for_non_climate_multi_data
         "mart_metric_correlation",
     }.issubset(result["marts"])
     assert "mart_climate_correlation" not in result["marts"]
-    assert result["final_summary_report"]["summary"]["primary_mart"] == (
-        "mart_revenue_trend"
-    )
+    assert result["final_summary_report"]["summary"]["primary_mart"] == ("mart_revenue_trend")
     assert result["final_summary_report"]["summary"]["primary_kpi"] == ("avg_revenue")
-    integrated_dataframe = pd.read_parquet(
-        tmp_path / result["integrated_dataset"]["output_path"]
-    )
+    integrated_dataframe = pd.read_parquet(tmp_path / result["integrated_dataset"]["output_path"])
     assert list(integrated_dataframe.columns) == ["year", "cost", "revenue"]
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
     assert "Config-driven project with `2` datasets" in project_readme
     assert "mart_revenue_trend" in project_readme
     assert "mart_cost_summary_stats" in project_readme
     assert "| revenue | 2020 | 2022 |" in project_readme
     dashboard_suggestions = result["dashboard_suggestions"]
-    assert (
-        dashboard_suggestions["question"] == "How do revenue and cost change over time?"
-    )
+    assert dashboard_suggestions["question"] == "How do revenue and cost change over time?"
     assert dashboard_suggestions["primary_mart"] == "mart_revenue_trend"
 
 
 def test_run_project_from_config_reports_coverage_for_date_like_time_columns(
     tmp_path: Path,
 ) -> None:
-    temperature_csv = (
-        "date,temperature_anomaly\n2024-01,0.80\n2024-02,0.90\n2025-01,1.10\n"
-    )
+    temperature_csv = "date,temperature_anomaly\n2024-01,0.80\n2024-02,0.90\n2025-01,1.10\n"
     co2_csv = "date,co2\n2024-01,410\n2024-02,412\n2025-01,415\n"
     (tmp_path / "temperature_anomaly.csv").write_text(temperature_csv, encoding="utf-8")
     (tmp_path / "co2.csv").write_text(co2_csv, encoding="utf-8")
@@ -707,9 +611,7 @@ def test_run_project_from_config_reports_coverage_for_date_like_time_columns(
         "temperature_anomaly": {"min_year": 2024, "max_year": 2025},
         "co2": {"min_year": 2024, "max_year": 2025},
     }
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
     assert "| temperature_anomaly | 2024 | 2025 |" in project_readme
     assert "| co2 | 2024 | 2025 |" in project_readme
 
@@ -750,9 +652,7 @@ def test_run_project_from_config_readme_explains_later_starting_datasets(
 
     cost_trend = pd.read_parquet(tmp_path / result["marts"]["mart_cost_trend"])
     assert cost_trend["year"].tolist() == ["2021", "2022"]
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
     assert "Coverage notes:" in project_readme
     assert (
         "- The integrated dataset keeps the union of available years across sources, so the project timeline begins at `2020`."
@@ -821,11 +721,7 @@ def test_run_project_from_config_cleans_obsolete_project_artifacts(
     assert manifest_path.exists()
     assert (tmp_path / result["marts"]["mart_time_trend"]).exists()
     refreshed_summary_path = (
-        tmp_path
-        / "projects"
-        / "finance_cleanup"
-        / "metadata"
-        / "final_summary_report.json"
+        tmp_path / "projects" / "finance_cleanup" / "metadata" / "final_summary_report.json"
     )
     assert refreshed_summary_path.exists()
     assert refreshed_summary_path.read_text(encoding="utf-8") != "stale"
@@ -865,24 +761,12 @@ def test_run_project_from_config_keeps_single_dataset_projects_off_integrated_la
     assert "integrated_dataset" not in result
     assert "mart_question_answer" in result["marts"]
     assert "mart_top_entities" in result["marts"]
-    assert not (
-        tmp_path / "projects" / "single_dataset_project" / "integrated"
-    ).exists()
-    assert (
-        result["final_summary_report"]["summary"]["config_path"]
-        == "project_config.json"
-    )
-    assert result["final_summary_report"]["summary"]["primary_mart"] == (
-        "mart_question_answer"
-    )
+    assert not (tmp_path / "projects" / "single_dataset_project" / "integrated").exists()
+    assert result["final_summary_report"]["summary"]["config_path"] == "project_config.json"
+    assert result["final_summary_report"]["summary"]["primary_mart"] == ("mart_question_answer")
     assert result["final_summary_report"]["summary"]["cleaned_data_path"].startswith(
         "projects/single_dataset_project/staging/staging_"
     )
-    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(
-        encoding="utf-8"
-    )
-    assert (
-        "does not create `integrated/` because only one dataset is configured"
-        in project_readme
-    )
+    project_readme = (tmp_path / result["project_readme"]["path"]).read_text(encoding="utf-8")
+    assert "does not create `integrated/` because only one dataset is configured" in project_readme
     assert '--config "project_config.json"' in project_readme

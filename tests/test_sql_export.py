@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from pipelines.sql_export import export_marts_to_sql, _infer_pg_type, _format_value
+from pipelines.sql_export import _format_value, _infer_pg_type, export_marts_to_sql
 
 
 class TestInferPgType:

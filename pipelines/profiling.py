@@ -13,7 +13,6 @@ from pandas.api.types import is_numeric_dtype
 
 from pipelines.utils import normalize_name, resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 

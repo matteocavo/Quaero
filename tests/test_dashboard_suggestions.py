@@ -74,9 +74,7 @@ def test_generate_dashboard_suggestions_includes_question_context_when_provided(
         project_root=tmp_path,
     )
 
-    output_path = (
-        tmp_path / "metadata" / "dashboard_suggestions_climate_change_analysis.json"
-    )
+    output_path = tmp_path / "metadata" / "dashboard_suggestions_climate_change_analysis.json"
     saved = json.loads(output_path.read_text(encoding="utf-8"))
 
     assert saved["question"].startswith("How has temperature anomaly changed")

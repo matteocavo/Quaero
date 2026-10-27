@@ -8,11 +8,10 @@ import math
 from pathlib import Path
 from typing import Any
 
-from pipelines.utils import normalize_name, resolve_project_root
-
 import pandas as pd
 from pandas.api.types import is_bool_dtype, is_numeric_dtype
 
+from pipelines.utils import normalize_name, resolve_project_root
 
 LOGGER = logging.getLogger(__name__)
 
@@ -41,8 +40,7 @@ def detect_anomalies(
     numeric_columns = [
         column_name
         for column_name in dataframe.columns
-        if is_numeric_dtype(dataframe[column_name])
-        and not is_bool_dtype(dataframe[column_name])
+        if is_numeric_dtype(dataframe[column_name]) and not is_bool_dtype(dataframe[column_name])
     ]
 
     anomalies: list[dict[str, Any]] = []
