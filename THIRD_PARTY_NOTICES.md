@@ -80,6 +80,13 @@ Anyone running these loaders is responsible for complying with the provider's te
 Datasets that a user uploads or points Quaero at (including the example URLs shown in the
 documentation) remain subject to the terms of their owners.
 
+### 1.6 Quaero demo data
+
+`sample_data/release_impact_sample.csv` and the generated `projects/release_impact/` demo project are
+synthetic demonstration data created for Quaero (statement of the repository owner). They are
+distributed under the MIT License of this repository. This applies only to this synthetic demo data,
+never to the external datasets described in this document.
+
 ## 2. Code loaded at run time
 
 ### 2.1 Mermaid
