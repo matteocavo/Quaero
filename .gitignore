@@ -35,3 +35,9 @@ projects/*/metadata/cleaning_summary_*.json
 projects/*/metadata/anomaly_report_*.json
 projects/*/metadata/analytics_metadata_*.json
 projects/*/metadata/dashboard_suggestions_*.json
+
+# --- Quaero runtime artifacts ---
+quaero.db
+quaero.db-shm
+quaero.db-wal
+runs/

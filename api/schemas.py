@@ -124,3 +124,27 @@ class RunStatusResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+# ---------------------------------------------------------------------------
+# Run history (Phase 2)
+# ---------------------------------------------------------------------------
+
+
+class RunHistoryItem(BaseModel):
+    run_id: str
+    project: str
+    status: RunStatus
+    question: str | None = None
+    source_url: str | None = None
+    created_at: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    error: str | None = None
+    artifact_path: str | None = None
+
+
+class RunHistoryResponse(BaseModel):
+    project: str
+    runs: list[RunHistoryItem]
+    total: int
