@@ -91,7 +91,7 @@ List all mart Parquet files for a project.
 {
   "project": "release_impact",
   "marts": [
-    { "name": "mart_time_trend", "size_bytes": 4096 }
+    { "name": "mart_time_trend", "path": "projects/release_impact/marts/mart_time_trend.parquet" }
   ]
 }
 ```
@@ -165,15 +165,67 @@ Poll the status of a pipeline run.
   "run_id": "a1b2c3d4-...",
   "project": "release_impact",
   "status": "COMPLETED",
-  "created_at": "2026-10-27T10:00:00Z",
-  "updated_at": "2026-10-27T10:02:15Z",
-  "error": null
+  "error": null,
+  "result_keys": ["project_mode", "marts", "..."]
 }
 ```
 
 **Status values:** `QUEUED` → `RUNNING` → `COMPLETED` | `FAILED`
 
 **Errors:** `404` if run_id doesn't exist or belongs to a different project.
+
+---
+
+### `GET /projects/{project}/runs`
+Return the persisted run history of a project from the SQLite store, newest first.
+
+**Query parameters:**
+
+| Parameter | Default | Constraints |
+|---|---|---|
+| `limit` | `50` | 1 - 500 |
+
+```json
+{
+  "project": "release_impact",
+  "runs": [
+    {
+      "run_id": "a1b2c3d4-...",
+      "project": "release_impact",
+      "status": "COMPLETED",
+      "question": "Which release years have the strongest streams?",
+      "source_url": null,
+      "created_at": "2026-10-27T10:00:00+00:00",
+      "started_at": "2026-10-27T10:00:01+00:00",
+      "completed_at": "2026-10-27T10:02:15+00:00",
+      "error": null,
+      "artifact_path": null
+    }
+  ],
+  "total": 12
+}
+```
+
+`total` is the total number of runs recorded for the project; `runs` holds at most `limit`
+of them, so `len(runs) < total` means the history is truncated.
+
+**Errors:** `503` if the SQLite store cannot be read (an outage is never reported as an empty
+history). A project with no runs returns `200` with `"runs": []` and `"total": 0`.
+
+---
+
+## Persistence (SQLite)
+
+Runs, projects and Parquet mart references are also recorded in a SQLite database
+(`db/store.py`, standard library only).
+
+| Setting | Behaviour |
+|---|---|
+| `QUAERO_DB_PATH` | Database file; defaults to `<QUAERO_PROJECT_ROOT>/quaero.db` |
+| Initialisation | Idempotent, executed on API startup (WAL journal mode, schema versioning) |
+| Run lifecycle | `QUEUED -> RUNNING -> COMPLETED \| FAILED`; every transition is one conditional `UPDATE` |
+| Marts | Only Parquet files listed in the pipeline result and present on disk are registered |
+| Failure mode | JSON manifests in `runs/` stay the primary record; a SQLite write failure is logged and never fails a run |
 
 ---
 
