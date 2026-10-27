@@ -7,13 +7,12 @@ import json
 import pandas as pd
 
 from pipelines.dq_scorer import (
-    score_dataframe,
     _completeness,
-    _uniqueness,
-    _outlier_flag,
     _format_score,
+    _outlier_flag,
+    _uniqueness,
+    score_dataframe,
 )
-
 
 # ---------------------------------------------------------------------------
 # Unit tests for individual dimension helpers

@@ -2,27 +2,26 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import math
 import re
 import ssl
-import ast
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from io import StringIO
-from typing import Any, Callable
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 import pandas as pd
 
-
 LOGGER = logging.getLogger(__name__)
 
 SEA_LEVEL_PAGE_URL = (
-    "https://sealevel.nasa.gov/understanding-sea-level/key-indicators/"
-    "global-mean-sea-level/"
+    "https://sealevel.nasa.gov/understanding-sea-level/key-indicators/global-mean-sea-level/"
 )
 
 TEMPERATURE_COLUMN_NAMES = [
@@ -51,9 +50,7 @@ def load_dataset_from_config(dataset: dict[str, Any]) -> pd.DataFrame:
     if loader is None:
         raise ValueError(f"Unsupported dataset loader: {loader_name}")
 
-    source_value = str(
-        dataset.get("source") or dataset.get("url") or dataset.get("path")
-    )
+    source_value = str(dataset.get("source") or dataset.get("url") or dataset.get("path"))
     if not source_value:
         raise ValueError("Dataset config is missing a source, url, or path value.")
 
@@ -77,12 +74,8 @@ def load_berkeley_temperature(
         engine="python",
     )
     dataframe = dataframe.dropna(how="all").reset_index(drop=True)
-    dataframe["year"] = pd.to_numeric(dataframe["year"], errors="coerce").astype(
-        "Int64"
-    )
-    dataframe["month"] = pd.to_numeric(dataframe["month"], errors="coerce").astype(
-        "Int64"
-    )
+    dataframe["year"] = pd.to_numeric(dataframe["year"], errors="coerce").astype("Int64")
+    dataframe["month"] = pd.to_numeric(dataframe["month"], errors="coerce").astype("Int64")
     dataframe["date"] = dataframe.apply(
         lambda row: (
             f"{int(row['year']):04d}-{int(row['month']):02d}"
@@ -211,23 +204,13 @@ def load_nsidc_monthly_ice_extent(
         )
 
     dataframe = pd.concat(frames, ignore_index=True)
-    dataframe.columns = [
-        column.strip().lower().replace(" ", "_") for column in dataframe.columns
-    ]
+    dataframe.columns = [column.strip().lower().replace(" ", "_") for column in dataframe.columns]
     dataframe = dataframe.rename(columns={"mo": "month", "extent": "ice_extent"})
-    dataframe["year"] = pd.to_numeric(dataframe["year"], errors="coerce").astype(
-        "Int64"
-    )
-    dataframe["month"] = pd.to_numeric(dataframe["month"], errors="coerce").astype(
-        "Int64"
-    )
+    dataframe["year"] = pd.to_numeric(dataframe["year"], errors="coerce").astype("Int64")
+    dataframe["month"] = pd.to_numeric(dataframe["month"], errors="coerce").astype("Int64")
     dataframe["ice_extent"] = pd.to_numeric(dataframe["ice_extent"], errors="coerce")
     dataframe["area"] = pd.to_numeric(dataframe["area"], errors="coerce")
-    dataframe = (
-        dataframe.replace(-9999, pd.NA)
-        .dropna(subset=["ice_extent"])
-        .reset_index(drop=True)
-    )
+    dataframe = dataframe.replace(-9999, pd.NA).dropna(subset=["ice_extent"]).reset_index(drop=True)
     dataframe["date"] = dataframe.apply(
         lambda row: (
             f"{int(row['year']):04d}-{int(row['month']):02d}"
@@ -239,8 +222,7 @@ def load_nsidc_monthly_ice_extent(
     loader_warnings: list[str] = []
     if fallback_files:
         loader_warnings.append(
-            "Some NSIDC monthly files required a fallback version: "
-            + ", ".join(fallback_files)
+            "Some NSIDC monthly files required a fallback version: " + ", ".join(fallback_files)
         )
     if skipped_files:
         loader_warnings.append(
@@ -257,9 +239,7 @@ def load_world_indicator_series(
     """Load a world-level indicator series from CSV or World Bank-style JSON."""
     metric_column = str(dataset_config.get("metric_column") or "").strip()
     if not metric_column:
-        raise ValueError(
-            "world_indicator_series loader requires metric_column in config."
-        )
+        raise ValueError("world_indicator_series loader requires metric_column in config.")
 
     source_format = str(dataset_config.get("source_format") or "").strip().lower()
     if (
@@ -286,9 +266,7 @@ def load_world_indicator_series(
 
     dataframe = dataframe[dataframe[country_column] == country_value].copy()
     if dataframe.empty:
-        raise ValueError(
-            f"world_indicator_series source does not contain {country_value!r} rows."
-        )
+        raise ValueError(f"world_indicator_series source does not contain {country_value!r} rows.")
 
     dataframe = dataframe.rename(
         columns={
@@ -297,9 +275,7 @@ def load_world_indicator_series(
             value_column: metric_column,
         }
     )
-    dataframe["year"] = pd.to_numeric(dataframe["year"], errors="coerce").astype(
-        "Int64"
-    )
+    dataframe["year"] = pd.to_numeric(dataframe["year"], errors="coerce").astype("Int64")
     dataframe[metric_column] = pd.to_numeric(dataframe[metric_column], errors="coerce")
     dataframe = dataframe.dropna(subset=["year", metric_column]).reset_index(drop=True)
     dataframe["date"] = dataframe["year"].map(
@@ -315,9 +291,7 @@ def load_aggregated_time_series(
     """Load a public CSV and aggregate it into a single metric by year."""
     metric_column = str(dataset_config.get("metric_column") or "").strip()
     if not metric_column:
-        raise ValueError(
-            "aggregated_time_series loader requires metric_column in config."
-        )
+        raise ValueError("aggregated_time_series loader requires metric_column in config.")
 
     time_source_column = str(dataset_config.get("time_source_column") or "year")
     aggregation = str(dataset_config.get("aggregation") or "sum").strip().lower()
@@ -338,9 +312,7 @@ def load_aggregated_time_series(
     if max_year is not None:
         working = working[working["year"] <= int(max_year)].copy()
     if working.empty:
-        raise ValueError(
-            "aggregated_time_series source did not contain usable year values."
-        )
+        raise ValueError("aggregated_time_series source did not contain usable year values.")
 
     if aggregation == "count_distinct":
         entity_column = str(dataset_config.get("entity_column") or "").strip()
@@ -355,9 +327,7 @@ def load_aggregated_time_series(
 
         entity_parser = str(dataset_config.get("entity_parser") or "").strip().lower()
         records: list[dict[str, Any]] = []
-        for year, raw_value in zip(
-            working["year"], working[entity_column], strict=False
-        ):
+        for year, raw_value in zip(working["year"], working[entity_column], strict=False):
             for entity_value in _parse_entity_values(raw_value, entity_parser):
                 cleaned = str(entity_value).strip()
                 if cleaned:
@@ -388,9 +358,7 @@ def load_aggregated_time_series(
         working[metric_column] = pd.to_numeric(working[value_column], errors="coerce")
         working = working.dropna(subset=[metric_column]).copy()
         if working.empty:
-            raise ValueError(
-                "aggregated_time_series source did not contain usable numeric values."
-            )
+            raise ValueError("aggregated_time_series source did not contain usable numeric values.")
 
         grouped = working.groupby("year", dropna=False)[metric_column]
         if aggregation == "average":
@@ -400,16 +368,10 @@ def load_aggregated_time_series(
         elif aggregation == "count":
             aggregated = grouped.count().reset_index(name=metric_column)
         else:
-            raise ValueError(
-                f"Unsupported aggregated_time_series aggregation: {aggregation}"
-            )
+            raise ValueError(f"Unsupported aggregated_time_series aggregation: {aggregation}")
 
-    aggregated["year"] = pd.to_numeric(aggregated["year"], errors="coerce").astype(
-        "Int64"
-    )
-    aggregated = (
-        aggregated.dropna(subset=["year"]).sort_values("year").reset_index(drop=True)
-    )
+    aggregated["year"] = pd.to_numeric(aggregated["year"], errors="coerce").astype("Int64")
+    aggregated = aggregated.dropna(subset=["year"]).sort_values("year").reset_index(drop=True)
     aggregated["date"] = aggregated["year"].map(
         lambda value: f"{int(value):04d}-01" if pd.notna(value) else pd.NA
     )
@@ -492,9 +454,7 @@ def _load_world_bank_indicator_json(source_url: str) -> pd.DataFrame:
     """Load a World Bank API indicator feed into a standard dataframe."""
     payload = json.loads(_download_text(source_url))
     if not isinstance(payload, list) or len(payload) < 2:
-        raise ValueError(
-            "World Bank indicator feed returned an unexpected response shape."
-        )
+        raise ValueError("World Bank indicator feed returned an unexpected response shape.")
     records = payload[1]
     if not isinstance(records, list):
         raise ValueError("World Bank indicator feed did not contain record data.")

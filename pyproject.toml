@@ -1,0 +1,28 @@
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# B008: FastAPI's Depends() in function signatures is the idiomatic pattern — not a bug.
+# BLE001: Broad except in test guards (test_ui.py skip block) and runner error handlers
+#          is intentional: we want to catch any import failure, not just specific ones.
+# TRY401: Logging exception object alongside logging.exception is intentional for context.
+# TRY004: ValueError is correct for input validation (path traversal = bad input value).
+# SIM102: Nested if is explicit and readable in the runner logic.
+# S112: try/except/continue in runner background task loop is intentional.
+# RUF046: Pre-existing in kpi_engine.
+# PYI034: Pre-existing type annotation style in test helpers.
+# PIE810: Pre-existing; readability trade-off.
+# FURB177: Pre-existing; Path().resolve() vs Path.cwd() is a style preference.
+ignore = [
+    "B008",
+    "BLE001",
+    "TRY401",
+    "TRY004",
+    "SIM102",
+    "S112",
+    "RUF046",
+    "PYI034",
+    "PIE810",
+    "FURB177",
+]

@@ -7,11 +7,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from pipelines.utils import normalize_name, resolve_project_root
-
 import pandas as pd
 from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_dtype
 
+from pipelines.utils import normalize_name, resolve_project_root
 
 LOGGER = logging.getLogger(__name__)
 

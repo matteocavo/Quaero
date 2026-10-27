@@ -12,10 +12,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import streamlit as st  # noqa: E402
+import streamlit as st
 
-from app.main import run_pipeline, run_project_pipeline  # noqa: E402
-from pipelines.utils import normalize_name  # noqa: E402
+from app.main import run_pipeline, run_project_pipeline
+from pipelines.utils import normalize_name
 
 st.set_page_config(page_title="Quaero Pipeline", page_icon="🔍", layout="wide")
 
@@ -233,9 +233,7 @@ def _render_input_panel() -> tuple[str, dict[str, Any]]:
 
 def _build_log_handler(log_stream: io.StringIO) -> logging.Handler:
     handler = logging.StreamHandler(log_stream)
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
-    )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s"))
     return handler
 
 
@@ -281,9 +279,7 @@ def _build_multi_dataset_config(
         if dataset_spec["source_mode"] == UPLOAD_SOURCE_MODE:
             uploaded_file = dataset_spec["uploaded_file"]
             if uploaded_file is None:
-                raise ValueError(
-                    f"Dataset '{dataset_name}' is missing an uploaded file."
-                )
+                raise ValueError(f"Dataset '{dataset_name}' is missing an uploaded file.")
             source_reference = str(
                 _save_uploaded_file(
                     uploaded_file=uploaded_file,

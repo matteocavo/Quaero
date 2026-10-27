@@ -22,7 +22,6 @@ from typing import Any
 
 from pipelines.utils import resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 _EDGE_COLORS: dict[str, str] = {
@@ -64,9 +63,7 @@ def render_lineage_html(
     lineage_json_path = metadata_dir / "lineage.json"
 
     if not lineage_json_path.exists():
-        LOGGER.warning(
-            "lineage.json not found at %s — skipping HTML render", lineage_json_path
-        )
+        LOGGER.warning("lineage.json not found at %s — skipping HTML render", lineage_json_path)
         return {"output_path": "metadata/lineage.html", "skipped": True}
 
     lineage = json.loads(lineage_json_path.read_text(encoding="utf-8"))
@@ -165,9 +162,7 @@ def _build_html(lineage: dict[str, Any], mermaid_code: str) -> str:
     )
 
     # Escape before embedding so lineage labels remain text, not HTML.
-    indented_mermaid = "\n".join(
-        "      " + escape(line) for line in mermaid_code.splitlines()
-    )
+    indented_mermaid = "\n".join("      " + escape(line) for line in mermaid_code.splitlines())
 
     return f"""<!DOCTYPE html>
 <html lang="en">

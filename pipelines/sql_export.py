@@ -27,7 +27,6 @@ from pandas.api.types import (
 
 from pipelines.utils import resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 _INSERT_BATCH_SIZE = 500
@@ -77,9 +76,7 @@ def _generate_sql(table_name: str, dataframe: pd.DataFrame) -> str:
         f"CREATE TABLE IF NOT EXISTS {table_name} (",
     ]
 
-    col_defs = [
-        f"    {col} {_infer_pg_type(dataframe[col])}" for col in dataframe.columns
-    ]
+    col_defs = [f"    {col} {_infer_pg_type(dataframe[col])}" for col in dataframe.columns]
     lines.append(",\n".join(col_defs))
     lines.append(");")
     lines.append("")
@@ -88,13 +85,10 @@ def _generate_sql(table_name: str, dataframe: pd.DataFrame) -> str:
     for batch_start in range(0, len(dataframe), _INSERT_BATCH_SIZE):
         batch = dataframe.iloc[batch_start : batch_start + _INSERT_BATCH_SIZE]
         value_rows = [
-            "    (" + ", ".join(_format_value(v) for v in row) + ")"
-            for _, row in batch.iterrows()
+            "    (" + ", ".join(_format_value(v) for v in row) + ")" for _, row in batch.iterrows()
         ]
         lines.append(
-            f"INSERT INTO {table_name} ({columns_csv}) VALUES\n"
-            + ",\n".join(value_rows)
-            + ";"
+            f"INSERT INTO {table_name} ({columns_csv}) VALUES\n" + ",\n".join(value_rows) + ";"
         )
         lines.append("")
 

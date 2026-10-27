@@ -24,7 +24,6 @@ from typing import Any
 
 from pipelines.utils import normalize_name, resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 # Fraction of total rows flagged that determines impact tier
@@ -60,15 +59,12 @@ def frame_anomalies(
     relative_output = output_path.relative_to(root_dir).as_posix()
 
     if not v1_path.exists():
-        LOGGER.warning(
-            "anomaly_report_%s.json not found — skipping framing", normalized
-        )
+        LOGGER.warning("anomaly_report_%s.json not found — skipping framing", normalized)
         return {"report": None, "output_path": relative_output, "skipped": True}
 
     v1_report: dict[str, Any] = json.loads(v1_path.read_text(encoding="utf-8"))
     enriched_anomalies = [
-        _enrich_anomaly(entry, total_row_count)
-        for entry in v1_report.get("anomalies", [])
+        _enrich_anomaly(entry, total_row_count) for entry in v1_report.get("anomalies", [])
     ]
 
     v2_report: dict[str, Any] = {
@@ -106,9 +102,7 @@ def _enrich_anomaly(entry: dict[str, Any], total_row_count: int) -> dict[str, An
         **entry,
         "frequency": round(frequency, 4),
         "impact": impact,
-        "suggested_action": _suggest_action(
-            column=column, impact=impact, method=method
-        ),
+        "suggested_action": _suggest_action(column=column, impact=impact, method=method),
     }
 
 
@@ -158,9 +152,7 @@ def _build_business_summary(
         return "No anomalies were detected in this dataset."
 
     affected_pct = (
-        round(100.0 * anomaly_row_count / total_row_count, 1)
-        if total_row_count > 0
-        else 0.0
+        round(100.0 * anomaly_row_count / total_row_count, 1) if total_row_count > 0 else 0.0
     )
     high_impact = [a for a in enriched_anomalies if a["impact"] == "high"]
     medium_impact = [a for a in enriched_anomalies if a["impact"] == "medium"]

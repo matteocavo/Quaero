@@ -8,20 +8,19 @@ import json
 import logging
 import re
 import socket
+import tempfile
 import uuid
 from datetime import datetime, timezone
-import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 from urllib.request import url2pathname, urlopen
 
-from pipelines.utils import normalize_name, resolve_project_root
-
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from pipelines.utils import normalize_name, resolve_project_root
 
 LOGGER = logging.getLogger(__name__)
 
@@ -54,9 +53,7 @@ def ingest_input(
     metadata_dir.mkdir(parents=True, exist_ok=True)
 
     if snapshot_name is None:
-        snapshot_filename = (
-            f"snapshot_{run_timestamp.strftime('%Y_%m_%d_%H%M%S')}.parquet"
-        )
+        snapshot_filename = f"snapshot_{run_timestamp.strftime('%Y_%m_%d_%H%M%S')}.parquet"
     else:
         snapshot_filename = f"{normalize_name(snapshot_name)}.parquet"
     snapshot_path = raw_dir / snapshot_filename
@@ -71,8 +68,7 @@ def ingest_input(
     )
     schema = infer_schema(dataframe)
     schema_summary = {
-        column_schema["name"]: column_schema["dtype"]
-        for column_schema in schema["columns"]
+        column_schema["name"]: column_schema["dtype"] for column_schema in schema["columns"]
     }
 
     LOGGER.info(
@@ -125,9 +121,7 @@ def ingest_dataframe(
     metadata_dir.mkdir(parents=True, exist_ok=True)
 
     if snapshot_name is None:
-        snapshot_filename = (
-            f"snapshot_{run_timestamp.strftime('%Y_%m_%d_%H%M%S')}.parquet"
-        )
+        snapshot_filename = f"snapshot_{run_timestamp.strftime('%Y_%m_%d_%H%M%S')}.parquet"
     else:
         snapshot_filename = f"{normalize_name(snapshot_name)}.parquet"
     snapshot_path = raw_dir / snapshot_filename
@@ -355,9 +349,7 @@ def _detect_source_type(
     if suffix in {".parquet", ".pq"}:
         return "parquet"
 
-    raise ValueError(
-        "Unsupported input type. Only CSV and Parquet files are supported."
-    )
+    raise ValueError("Unsupported input type. Only CSV and Parquet files are supported.")
 
 
 def _coerce_local_source_path(source_path: str | Path) -> Path:
@@ -404,9 +396,7 @@ def _assert_url_is_public(source_url: str) -> None:
 
 def main() -> None:
     """Provide a small CLI for local ingestion runs."""
-    parser = argparse.ArgumentParser(
-        description="Ingest a CSV or Parquet file into the raw layer."
-    )
+    parser = argparse.ArgumentParser(description="Ingest a CSV or Parquet file into the raw layer.")
     parser.add_argument(
         "source_path",
         help="Path or direct URL for the source CSV or Parquet file.",

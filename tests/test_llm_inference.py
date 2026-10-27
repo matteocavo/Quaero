@@ -37,9 +37,7 @@ def mock_dimension_df() -> pd.DataFrame:
 
 @patch.dict(os.environ, {"QUAERO_ANTHROPIC_API_KEY": "fake_key"})
 @patch("kpi_engine.llm_inference.infer_column_with_llm", return_value="idx_val")
-def test_llm_metric_inference_fallback_success(
-    mock_llm, mock_metric_df: pd.DataFrame
-) -> None:
+def test_llm_metric_inference_fallback_success(mock_llm, mock_metric_df: pd.DataFrame) -> None:
     result = infer_metric_column("Which index value is highest?", mock_metric_df)
 
     assert result["metric_column"] == "idx_val"
@@ -64,9 +62,7 @@ def test_llm_dimension_inference_fallback_success(
 
 
 @patch.dict(os.environ, {"QUAERO_ANTHROPIC_API_KEY": "fake_key"})
-@patch(
-    "kpi_engine.llm_inference.infer_column_with_llm", return_value="not_a_real_column"
-)
+@patch("kpi_engine.llm_inference.infer_column_with_llm", return_value="not_a_real_column")
 def test_llm_metric_inference_rejects_invalid_column(
     mock_llm, mock_metric_df: pd.DataFrame
 ) -> None:
@@ -77,15 +73,11 @@ def test_llm_metric_inference_rejects_invalid_column(
 
 
 @patch.dict(os.environ, {"QUAERO_ANTHROPIC_API_KEY": "fake_key"})
-@patch(
-    "kpi_engine.llm_inference.infer_column_with_llm", side_effect=RuntimeError("boom")
-)
+@patch("kpi_engine.llm_inference.infer_column_with_llm", side_effect=RuntimeError("boom"))
 def test_llm_dimension_inference_falls_back_to_existing_error_on_exception(
     mock_llm, mock_dimension_df: pd.DataFrame
 ) -> None:
-    with pytest.raises(
-        ValueError, match="Could not confidently infer a dimension column"
-    ):
+    with pytest.raises(ValueError, match="Could not confidently infer a dimension column"):
         infer_dimension_column(
             "Which group performs best?",
             mock_dimension_df,

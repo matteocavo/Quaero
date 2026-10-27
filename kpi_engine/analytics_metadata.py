@@ -12,7 +12,6 @@ from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_
 
 from pipelines.utils import normalize_name, resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 METRIC_HINTS = ("streams", "sales", "revenue", "amount", "value", "score", "count")
@@ -80,9 +79,7 @@ def _column_importance_candidates(schema: list[dict[str, Any]]) -> list[str]:
     scored_columns = sorted(
         schema,
         key=lambda column: (
-            _name_hint_score(
-                column["name"], METRIC_HINTS + TIME_HINTS + GROUPING_HINTS
-            ),
+            _name_hint_score(column["name"], METRIC_HINTS + TIME_HINTS + GROUPING_HINTS),
             int(column["is_numeric"] or column["is_datetime"]),
         ),
         reverse=True,

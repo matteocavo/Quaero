@@ -10,8 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from pipelines.utils import normalize_name, resolve_project_root
-
 from pandas.api.types import (
     is_bool_dtype,
     is_numeric_dtype,
@@ -19,6 +17,7 @@ from pandas.api.types import (
     is_string_dtype,
 )
 
+from pipelines.utils import normalize_name, resolve_project_root
 
 LOGGER = logging.getLogger(__name__)
 
@@ -82,9 +81,7 @@ def clean_dataframe(
     decisions.extend(blank_decisions)
 
     # Step 3 — type enforcement
-    cleaned, type_conversion_issue, type_decisions = _apply_type_enforcement_logged(
-        cleaned
-    )
+    cleaned, type_conversion_issue, type_decisions = _apply_type_enforcement_logged(cleaned)
     decisions.extend(type_decisions)
 
     # Step 4 — date parsing
@@ -94,12 +91,8 @@ def clean_dataframe(
     # Step 5 — deduplication
     duplicate_mask = cleaned.duplicated(keep="first")
     deduplicated = cleaned.loc[~duplicate_mask].reset_index(drop=True)
-    deduplicated_type_issue = type_conversion_issue.loc[~duplicate_mask].reset_index(
-        drop=True
-    )
-    deduplicated_date_issue = invalid_date_parse.loc[~duplicate_mask].reset_index(
-        drop=True
-    )
+    deduplicated_type_issue = type_conversion_issue.loc[~duplicate_mask].reset_index(drop=True)
+    deduplicated_date_issue = invalid_date_parse.loc[~duplicate_mask].reset_index(drop=True)
     duplicate_row_count = int(duplicate_mask.sum())
     if duplicate_row_count > 0:
         decisions.append(
@@ -119,8 +112,7 @@ def clean_dataframe(
     run_timestamp = datetime.now(timezone.utc)
     run_suffix = run_id
     output_path = (
-        staging_dir
-        / f"staging_{run_timestamp.strftime('%Y_%m_%d_%H%M%S')}_{run_suffix}.parquet"
+        staging_dir / f"staging_{run_timestamp.strftime('%Y_%m_%d_%H%M%S')}_{run_suffix}.parquet"
     )
     metadata_path = metadata_dir / f"cleaning_summary_{normalized_source_name}.json"
     log_path = metadata_dir / f"cleaning_log_{normalized_source_name}.json"
@@ -248,11 +240,7 @@ def _apply_type_enforcement_logged(
                     rows_affected=failed if failed > 0 else None,
                     details=(
                         f"'{column_name}' cast to numeric (ratio: {numeric_ratio:.0%})."
-                        + (
-                            f" {failed} value(s) could not convert."
-                            if failed > 0
-                            else ""
-                        )
+                        + (f" {failed} value(s) could not convert." if failed > 0 else "")
                     ),
                 )
             )
@@ -351,8 +339,7 @@ def _build_cleaning_summary(
     base_columns = [
         column_name
         for column_name in cleaned_columns
-        if column_name
-        not in {"has_nulls", "invalid_date_parse", "type_conversion_issue"}
+        if column_name not in {"has_nulls", "invalid_date_parse", "type_conversion_issue"}
     ]
 
     return {
@@ -363,16 +350,13 @@ def _build_cleaning_summary(
         "duplicate_row_count": duplicate_row_count,
         "rows_with_nulls": int(dataframe["has_nulls"].sum()),
         "rows_with_invalid_date_parse": int(dataframe["invalid_date_parse"].sum()),
-        "rows_with_type_conversion_issue": int(
-            dataframe["type_conversion_issue"].sum()
-        ),
+        "rows_with_type_conversion_issue": int(dataframe["type_conversion_issue"].sum()),
         "output_path": output_path.relative_to(project_root).as_posix(),
         "metadata_path": metadata_path.relative_to(project_root).as_posix(),
         "original_columns": original_columns,
         "cleaned_columns": cleaned_columns,
         "null_counts_by_column": {
-            column_name: int(dataframe[column_name].isna().sum())
-            for column_name in base_columns
+            column_name: int(dataframe[column_name].isna().sum()) for column_name in base_columns
         },
     }
 

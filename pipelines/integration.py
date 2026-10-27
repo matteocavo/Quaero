@@ -11,7 +11,6 @@ from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
 from kpi_engine.semantic_contract import infer_metric_unit
 from pipelines.utils import normalize_name, resolve_project_root
 
-
 REQUIRED_STANDARD_COLUMNS = ("year", "source_metric_value", "dataset_name")
 
 
@@ -29,10 +28,7 @@ def standardize_dataset_for_integration(
         )
 
     resolved_metric_column = metric_column and normalize_name(metric_column)
-    if (
-        resolved_metric_column is not None
-        and resolved_metric_column not in dataframe.columns
-    ):
+    if resolved_metric_column is not None and resolved_metric_column not in dataframe.columns:
         raise ValueError(
             f"Metric column not found for dataset '{dataset_name}': {resolved_metric_column}"
         )
@@ -44,9 +40,7 @@ def standardize_dataset_for_integration(
 
     working = dataframe.copy()
     working["year"] = _normalize_time_series(working[normalized_time_column])
-    working["source_metric_value"] = pd.to_numeric(
-        working[resolved_metric_column], errors="coerce"
-    )
+    working["source_metric_value"] = pd.to_numeric(working[resolved_metric_column], errors="coerce")
     working["dataset_name"] = normalize_name(dataset_name)
 
     if working["source_metric_value"].dropna().empty:
@@ -74,9 +68,7 @@ def build_integrated_master_dataset(
     provide a project-specific output name when that is more descriptive.
     """
     if not standardized_datasets:
-        raise ValueError(
-            "At least one standardized dataset is required for integration."
-        )
+        raise ValueError("At least one standardized dataset is required for integration.")
 
     long_frames: list[pd.DataFrame] = []
     dataset_metrics: list[dict[str, Any]] = []
@@ -94,16 +86,12 @@ def build_integrated_master_dataset(
 
     long_dataframe = pd.concat(long_frames, ignore_index=True, sort=False)
     aggregated = (
-        long_dataframe.groupby(["year", "dataset_name"], dropna=False)[
-            "source_metric_value"
-        ]
+        long_dataframe.groupby(["year", "dataset_name"], dropna=False)["source_metric_value"]
         .mean()
         .reset_index()
     )
     integrated = (
-        aggregated.pivot(
-            index="year", columns="dataset_name", values="source_metric_value"
-        )
+        aggregated.pivot(index="year", columns="dataset_name", values="source_metric_value")
         .reset_index()
         .rename_axis(columns=None)
         .sort_values("year")
@@ -132,15 +120,11 @@ def _infer_dataset_metric_column(dataframe: pd.DataFrame, time_column: str) -> s
         if column != time_column and is_numeric_dtype(dataframe[column])
     ]
     if not numeric_candidates:
-        raise ValueError(
-            "Could not infer a numeric metric column for multi-dataset integration."
-        )
+        raise ValueError("Could not infer a numeric metric column for multi-dataset integration.")
     preferred = [
         column
         for column in numeric_candidates
-        if "year" not in column
-        and "id" not in column
-        and dataframe[column].notna().any()
+        if "year" not in column and "id" not in column and dataframe[column].notna().any()
     ]
     return preferred[0] if preferred else numeric_candidates[0]
 

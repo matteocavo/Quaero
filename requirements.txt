@@ -6,6 +6,11 @@ streamlit
 anthropic
 pydantic
 
+# FastAPI layer
+fastapi
+uvicorn[standard]
+httpx
+
 # Forward-looking dependencies kept for future query/performance work
 polars
 duckdb

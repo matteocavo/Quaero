@@ -81,9 +81,7 @@ def test_infer_metric_column_uses_token_based_hint_matching() -> None:
 
     assert result["metric_column"] == "discount_amount"
     discount_candidate = next(
-        candidate
-        for candidate in result["candidates"]
-        if candidate["column"] == "discount_amount"
+        candidate for candidate in result["candidates"] if candidate["column"] == "discount_amount"
     )
     assert discount_candidate["score"] == (2, 1, 1)
 
@@ -243,18 +241,14 @@ def test_infer_aggregation_intent_detects_lowest_ordering() -> None:
 
 
 def test_infer_aggregation_intent_detects_count_aggregation() -> None:
-    result = infer_aggregation_intent(
-        "Which providers have the highest number of trips?"
-    )
+    result = infer_aggregation_intent("Which providers have the highest number of trips?")
 
     assert result["aggregation"] == "count"
     assert result["selection_mode"] == "auto_inferred"
 
 
 def test_infer_aggregation_intent_detects_sum_aggregation() -> None:
-    result = infer_aggregation_intent(
-        "Which release years generated the highest total streams?"
-    )
+    result = infer_aggregation_intent("Which release years generated the highest total streams?")
 
     assert result["aggregation"] == "sum"
     assert result["ordering"] == "highest"

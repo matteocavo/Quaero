@@ -27,7 +27,6 @@ from pandas.api.types import is_numeric_dtype, is_object_dtype, is_string_dtype
 
 from pipelines.utils import normalize_name, resolve_project_root
 
-
 LOGGER = logging.getLogger(__name__)
 
 _COMPLETENESS_WEIGHT = 0.40
@@ -64,9 +63,7 @@ def score_dataframe(
 
     scored_columns = [c for c in dataframe.columns if c not in _QUALITY_FLAG_COLUMNS]
 
-    column_results: list[dict[str, Any]] = [
-        _score_column(dataframe[col]) for col in scored_columns
-    ]
+    column_results: list[dict[str, Any]] = [_score_column(dataframe[col]) for col in scored_columns]
 
     overall = (
         round(sum(r["dq_score"] for r in column_results) / len(column_results), 1)
@@ -152,8 +149,6 @@ def _format_score(series: pd.Series) -> float:
         non_null = series.dropna()
         if len(non_null) == 0:
             return 100.0
-        non_string_ratio = float(
-            sum(1 for v in non_null if not isinstance(v, str)) / len(non_null)
-        )
+        non_string_ratio = float(sum(1 for v in non_null if not isinstance(v, str)) / len(non_null))
         return round(max(0.0, 100.0 - non_string_ratio * 100), 1)
     return 100.0

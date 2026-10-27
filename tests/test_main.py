@@ -6,9 +6,7 @@ import sys
 from app import main as main_module
 
 
-def test_run_pipeline_wrapper_delegates_to_pipeline_runner(
-    tmp_path, monkeypatch
-) -> None:
+def test_run_pipeline_wrapper_delegates_to_pipeline_runner(tmp_path, monkeypatch) -> None:
     expected = {"final_summary_report": {"summary": {"source": "demo"}}}
     captured: dict[str, object] = {}
 
@@ -34,9 +32,7 @@ def test_run_pipeline_wrapper_delegates_to_pipeline_runner(
     }
 
 
-def test_run_project_pipeline_wrapper_delegates_to_config_runner(
-    tmp_path, monkeypatch
-) -> None:
+def test_run_project_pipeline_wrapper_delegates_to_config_runner(tmp_path, monkeypatch) -> None:
     expected = {"final_summary_report": {"summary": {"project": "demo"}}}
     captured: dict[str, object] = {}
 
@@ -44,9 +40,7 @@ def test_run_project_pipeline_wrapper_delegates_to_config_runner(
         captured.update(kwargs)
         return expected
 
-    monkeypatch.setattr(
-        main_module, "run_project_from_config", fake_run_project_from_config
-    )
+    monkeypatch.setattr(main_module, "run_project_from_config", fake_run_project_from_config)
 
     result = main_module.run_project_pipeline(
         config_path="project_config.json",
@@ -60,9 +54,7 @@ def test_run_project_pipeline_wrapper_delegates_to_config_runner(
     }
 
 
-def test_main_cli_keeps_single_dataset_overrides_backward_compatible(
-    monkeypatch, capsys
-) -> None:
+def test_main_cli_keeps_single_dataset_overrides_backward_compatible(monkeypatch, capsys) -> None:
     expected = {"final_summary_report": {"summary": {"status": "ok"}}}
     captured: dict[str, object] = {}
 
@@ -109,7 +101,4 @@ def test_main_cli_keeps_single_dataset_overrides_backward_compatible(
         "release_year_column": "year",
         "project_root": ".",
     }
-    assert (
-        json.loads(capsys.readouterr().out)
-        == expected["final_summary_report"]["summary"]
-    )
+    assert json.loads(capsys.readouterr().out) == expected["final_summary_report"]["summary"]

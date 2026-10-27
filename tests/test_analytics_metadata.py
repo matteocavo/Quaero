@@ -29,9 +29,7 @@ def test_build_analytics_metadata_writes_expected_output(tmp_path: Path) -> None
     assert output_path.exists()
 
     saved = json.loads(output_path.read_text(encoding="utf-8"))
-    assert saved == {
-        key: value for key, value in metadata.items() if key != "output_path"
-    }
+    assert saved == {key: value for key, value in metadata.items() if key != "output_path"}
     assert metadata["source"] == "release_impact"
     assert metadata["output_path"] == "metadata/analytics_metadata_release_impact.json"
     assert "streams" in metadata["column_importance_candidates"]

@@ -19,11 +19,7 @@ def test_end_to_end_pipeline_with_sample_dataset(tmp_path: Path) -> None:
     )
 
     summary_path = (
-        tmp_path
-        / "projects"
-        / "release_impact_sample"
-        / "metadata"
-        / "final_summary_report.json"
+        tmp_path / "projects" / "release_impact_sample" / "metadata" / "final_summary_report.json"
     )
     analytics_metadata_path = (
         tmp_path
@@ -40,11 +36,7 @@ def test_end_to_end_pipeline_with_sample_dataset(tmp_path: Path) -> None:
         / "dashboard_suggestions_release_impact_sample.json"
     )
     metrics_definitions_path = (
-        tmp_path
-        / "projects"
-        / "release_impact_sample"
-        / "metadata"
-        / "metrics_definitions.json"
+        tmp_path / "projects" / "release_impact_sample" / "metadata" / "metrics_definitions.json"
     )
     project_readme_path = tmp_path / "projects" / "release_impact_sample" / "README.md"
 
@@ -75,16 +67,14 @@ def test_end_to_end_pipeline_with_sample_dataset(tmp_path: Path) -> None:
         == "projects/release_impact_sample/metadata/release_impact_sample_profile.json"
     )
     assert summary["analytics_metadata_path"] == (
-        "projects/release_impact_sample/metadata/"
-        "analytics_metadata_release_impact_sample.json"
+        "projects/release_impact_sample/metadata/analytics_metadata_release_impact_sample.json"
     )
     assert (
         summary["metrics_definitions_path"]
         == "projects/release_impact_sample/metadata/metrics_definitions.json"
     )
     assert summary["dashboard_suggestions_path"] == (
-        "projects/release_impact_sample/metadata/"
-        "dashboard_suggestions_release_impact_sample.json"
+        "projects/release_impact_sample/metadata/dashboard_suggestions_release_impact_sample.json"
     )
     assert summary["project_readme_path"] == "projects/release_impact_sample/README.md"
 
@@ -100,14 +90,9 @@ def test_end_to_end_pipeline_with_sample_dataset(tmp_path: Path) -> None:
     assert "- Dataset name: `release_impact_sample`" in project_readme
     assert "- Rows processed: `5`" in project_readme
     assert "- Number of columns: `4`" in project_readme
-    assert (
-        "| Column | Type | Null % | Unique Values | Example Values |" in project_readme
-    )
+    assert "| Column | Type | Null % | Unique Values | Example Values |" in project_readme
     assert "| release_year | integer | 0% | 5 |" in project_readme
     assert "| streams | integer | 0% | 5 |" in project_readme
-    assert (
-        "| provider | Provider or platform associated with the record |"
-        in project_readme
-    )
+    assert "| provider | Provider or platform associated with the record |" in project_readme
     assert "metric_value" not in project_readme
     assert "exports/bi" not in project_readme

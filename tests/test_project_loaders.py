@@ -16,7 +16,7 @@ from pipelines.project_loaders import (
 
 
 class _FakeResponse:
-    def __enter__(self) -> "_FakeResponse":
+    def __enter__(self) -> _FakeResponse:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -95,9 +95,7 @@ def test_load_owid_world_co2_skips_null_year_rows(monkeypatch) -> None:
         }
     )
 
-    monkeypatch.setattr(
-        "pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe
-    )
+    monkeypatch.setattr("pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe)
 
     result = load_owid_world_co2("https://example.com/owid.csv", {})
 
@@ -149,9 +147,7 @@ def test_load_world_indicator_series_filters_world_from_csv(monkeypatch) -> None
         }
     )
 
-    monkeypatch.setattr(
-        "pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe
-    )
+    monkeypatch.setattr("pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe)
 
     result = load_world_indicator_series(
         "https://example.com/gdp.csv",
@@ -216,9 +212,7 @@ def test_load_world_indicator_series_supports_world_bank_json(monkeypatch) -> No
         '"date":"2024","value":2.1}]]'
     )
 
-    monkeypatch.setattr(
-        "pipelines.project_loaders._download_text", lambda *args, **kwargs: payload
-    )
+    monkeypatch.setattr("pipelines.project_loaders._download_text", lambda *args, **kwargs: payload)
 
     result = load_world_indicator_series(
         "https://api.worldbank.org/v2/country/all/indicator/FP.CPI.TOTL.ZG?format=json",
@@ -245,9 +239,7 @@ def test_load_aggregated_time_series_averages_values_by_year(monkeypatch) -> Non
         }
     )
 
-    monkeypatch.setattr(
-        "pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe
-    )
+    monkeypatch.setattr("pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe)
 
     result = load_aggregated_time_series(
         "https://example.com/books.csv",
@@ -272,9 +264,7 @@ def test_load_aggregated_time_series_sums_date_valued_series(monkeypatch) -> Non
         }
     )
 
-    monkeypatch.setattr(
-        "pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe
-    )
+    monkeypatch.setattr("pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe)
 
     result = load_aggregated_time_series(
         "https://example.com/revenue.csv",
@@ -298,9 +288,7 @@ def test_load_aggregated_time_series_respects_year_window(monkeypatch) -> None:
         }
     )
 
-    monkeypatch.setattr(
-        "pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe
-    )
+    monkeypatch.setattr("pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe)
 
     result = load_aggregated_time_series(
         "https://example.com/books.csv",
@@ -331,9 +319,7 @@ def test_load_aggregated_time_series_counts_distinct_entities_from_python_lists(
         }
     )
 
-    monkeypatch.setattr(
-        "pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe
-    )
+    monkeypatch.setattr("pipelines.project_loaders.pd.read_csv", lambda *args, **kwargs: dataframe)
 
     result = load_aggregated_time_series(
         "https://example.com/artists.csv",
