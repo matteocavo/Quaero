@@ -15,6 +15,7 @@ from api.schemas import (
     RunStatus,
     RunStatusResponse,
 )
+from api.services.artifacts import _validate_identifier
 from api.services.runner import create_run, execute_run, get_run
 
 router = APIRouter(
@@ -46,6 +47,14 @@ async def trigger_run(
       restart the API and resubmit.
     * Only one active (QUEUED or RUNNING) run is allowed per project at a time.
     """
+    try:
+        _validate_identifier(project, "project name")
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
     source_url = str(payload.source_url) if payload.source_url else None
 
     try:
