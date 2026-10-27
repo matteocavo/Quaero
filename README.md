@@ -464,6 +464,21 @@ project folder and reuses the standard config-driven pipeline path, so the UI is
 now aligned with Quaero's actual multi-dataset architecture instead of exposing
 only the single-dataset path.
 
+## Operations console
+
+`console/` is a local Streamlit console for operating Quaero through the API: explore projects,
+start runs and follow their status and history, browse marts, inspect data quality, anomalies and
+lineage. It is a thin client of the FastAPI (it never reads artifacts or the database directly) and is
+separate from the pipeline UI in `app/ui.py`, which is unchanged.
+
+```bash
+export QUAERO_API_KEY="your-secret-key"
+uvicorn api.main:app --host 127.0.0.1 --port 8000      # terminal 1
+streamlit run console/app.py                           # terminal 2 (same QUAERO_API_KEY)
+```
+
+See [console/README.md](console/README.md) for the screens, configuration and limitations.
+
 ## Testing
 
 Run the automated tests with:

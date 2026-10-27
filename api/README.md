@@ -13,7 +13,7 @@ export QUAERO_PROJECT_ROOT="/path/to/your/data"   # optional — defaults to rep
 export QUAERO_CORS_ORIGINS="http://localhost:3000" # optional — comma-separated
 
 # Start the server
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 **PowerShell (Windows):**
@@ -21,8 +21,12 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```powershell
 $env:QUAERO_API_KEY = "your-secret-key"
 $env:QUAERO_PROJECT_ROOT = "C:\path\to\your\data"
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+
+---
+
+Bind to `127.0.0.1` (loopback). Use `0.0.0.0` only behind a reverse proxy with TLS and an access policy you control: the API key is a single shared secret.
 
 ---
 
@@ -151,7 +155,7 @@ Trigger an async pipeline run. Returns immediately with `202 Accepted`.
 }
 ```
 
-**Errors:** `409` if a run is already QUEUED or RUNNING for this project.
+**Errors:** `409` if a run is already QUEUED or RUNNING for this project; `422` if the project name contains characters other than letters, digits, underscores and hyphens.
 
 **Security:** `source_url` is validated against an IP blocklist (loopback, RFC-1918 private ranges, link-local) to prevent SSRF attacks.
 
@@ -211,6 +215,77 @@ of them, so `len(runs) < total` means the history is truncated.
 
 **Errors:** `503` if the SQLite store cannot be read (an outage is never reported as an empty
 history). A project with no runs returns `200` with `"runs": []` and `"total": 0`.
+
+---
+
+### `GET /projects/{project}/overview`
+Project facts for the operations console: artifact availability, the latest run and whether the
+project can be re-run without a URL.
+
+```json
+{
+  "project": "release_impact",
+  "project_mode": "single_dataset",
+  "question": "Which release years generate the strongest average streams?",
+  "primary_mart": null,
+  "primary_kpi": "avg_streams",
+  "marts_count": 4,
+  "has_config": false,
+  "artifacts": {
+    "summary": true, "data_quality": true, "anomalies": true,
+    "lineage": true, "metrics_definitions": true
+  },
+  "last_run": { "run_id": "a1b2c3d4-...", "status": "COMPLETED", "...": "..." },
+  "history_available": true
+}
+```
+
+`project_mode` is `multi_dataset` when the summary says so, `single_dataset` when a summary exists
+without that key, and `null` without a readable summary. `history_available` is `false` (and
+`last_run` is `null`) when SQLite cannot be read, so an outage is not mistaken for "never run".
+
+**Errors:** `404` if the project does not exist.
+
+---
+
+### `GET /projects/{project}/data-quality`
+Data-quality score reports (`metadata/dq_score_*.json`), one entry per report file.
+
+```json
+{
+  "project": "release_impact",
+  "reports": [
+    {
+      "source": "release_impact",
+      "generated_at": "2026-10-27T10:00:00+00:00",
+      "overall_score": 93.4,
+      "column_count": 3,
+      "columns": [
+        {
+          "column": "streams", "dtype": "int64", "completeness": 100.0, "uniqueness": 87.5,
+          "outlier_flag": false, "format_score": 100.0, "dq_score": 93.5
+        }
+      ]
+    }
+  ]
+}
+```
+
+### `GET /projects/{project}/anomalies`
+Framed (v2) anomaly report when `anomaly_report_v2_*.json` exists, otherwise the raw (v1) report.
+`version` says which one was returned; `business_summary`, `frequency`, `impact` and
+`suggested_action` are present for v2 only. If several reports of the same version exist, the most
+recently modified is returned.
+
+### `GET /projects/{project}/lineage`
+Column-level lineage from `metadata/lineage.json`: `nodes` (`id`, `layer`, `name`, ...) and `edges`
+(`from`, `to`, `type`).
+
+**Which artifacts exist depends on how the project was run.** Single-dataset runs write the
+data-quality report, the lineage and the framed anomaly report; config-driven multi-dataset runs write
+only the raw anomaly report. A missing artifact returns `404` with an explanatory message (a normal
+state, not a failure). A present but unreadable or unexpectedly shaped artifact returns `500` with a
+generic message, and artifacts larger than 10 MB are refused.
 
 ---
 

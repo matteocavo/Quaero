@@ -5,6 +5,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 project uses [Semantic Versioning](https://semver.org/). Releases before 0.5.0 are
 documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/releases).
 
+## [Unreleased]
+
+Candidate for v0.6.0 - Operations Console. Not released.
+
+### Added
+- **Operations console** (`console/`, Streamlit): Project Explorer, Pipeline Operations (start a run,
+  bounded auto-refresh, run history with durations and errors), Mart Explorer (paginated preview,
+  page-local filter, CSV of the current page), Data Quality & Anomalies, and a Lineage Viewer drawn
+  from `lineage.json` (no HTML or CDN script is rendered). It is a client of the API only and keeps
+  `app/ui.py` unchanged.
+- API read endpoints for the console: `GET /projects/{project}/overview`, `/data-quality`,
+  `/anomalies` and `/lineage`, protected by the existing API key. Artifacts are read as the pipeline
+  writes them; missing artifacts return `404` (single-dataset runs produce data quality, lineage and
+  framed anomalies; multi-dataset runs produce only the raw anomaly report).
+- Design for a future human review queue (states, rules, data model, audit trail) in
+  `QUAERO_PHASE3_OPERATIONS_CONSOLE.md`; nothing is persisted yet.
+
+### Changed
+- `POST /projects/{project}/run` now validates the project identifier (letters, digits, underscores,
+  hyphens) and returns `422` otherwise, matching the read endpoints. All existing project names comply.
+- API documentation uses `127.0.0.1` as the local bind address instead of `0.0.0.0`.
+
+### Security
+- Artifact readers validate identifiers, keep resolved paths inside `metadata/`, cap artifact size at
+  10 MB and never include file paths or tracebacks in error responses.
+
 ## [0.5.0] - 2026-10-27 - API & Persistence Foundation
 
 Quaero gains an HTTP interface and a durable run history. The analytical pipeline
