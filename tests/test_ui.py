@@ -12,13 +12,13 @@ except Exception as exc:  # pragma: no cover - environment-dependent import guar
 
 
 def test_ui_accepts_business_question_and_exposes_run_pipeline_button() -> None:
-    app = AppTest.from_file("app/ui.py")
+    app = AppTest.from_file(
+        str(__import__("pathlib").Path(__file__).parent.parent / "app" / "ui.py")
+    )
 
     app.run()
 
-    app.text_input[0].set_value(
-        "Which release years generate the strongest average streams?"
-    )
+    app.text_input[0].set_value("Which release years generate the strongest average streams?")
     app.text_input[1].set_value("release_impact")
 
     app.run()
@@ -28,7 +28,9 @@ def test_ui_accepts_business_question_and_exposes_run_pipeline_button() -> None:
 
 
 def test_ui_renders_single_dataset_url_mode_without_exceptions() -> None:
-    app = AppTest.from_file("app/ui.py")
+    app = AppTest.from_file(
+        str(__import__("pathlib").Path(__file__).parent.parent / "app" / "ui.py")
+    )
 
     app.run()
 
@@ -40,7 +42,9 @@ def test_ui_renders_single_dataset_url_mode_without_exceptions() -> None:
 
 
 def test_ui_renders_multi_dataset_mode_without_exceptions() -> None:
-    app = AppTest.from_file("app/ui.py")
+    app = AppTest.from_file(
+        str(__import__("pathlib").Path(__file__).parent.parent / "app" / "ui.py")
+    )
 
     app.run()
 
@@ -49,7 +53,5 @@ def test_ui_renders_multi_dataset_mode_without_exceptions() -> None:
 
     assert len(app.exception) == 0
     assert any(text_input.label == "Project Name" for text_input in app.text_input)
-    assert any(
-        number_input.label == "Number of datasets" for number_input in app.number_input
-    )
+    assert any(number_input.label == "Number of datasets" for number_input in app.number_input)
     assert any(button.label == "Run Pipeline" for button in app.button)
