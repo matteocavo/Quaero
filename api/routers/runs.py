@@ -1,13 +1,20 @@
-"""Endpoints for triggering and monitoring pipeline runs."""
+"""Endpoints for triggering, monitoring, and listing pipeline runs."""
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 
 from api.dependencies import get_project_root, require_api_key
-from api.schemas import RunAcceptedResponse, RunRequest, RunStatus, RunStatusResponse
+from api.schemas import (
+    RunAcceptedResponse,
+    RunHistoryResponse,
+    RunRequest,
+    RunStatus,
+    RunStatusResponse,
+)
 from api.services.runner import create_run, execute_run, get_run
 
 router = APIRouter(
@@ -39,15 +46,20 @@ async def trigger_run(
       restart the API and resubmit.
     * Only one active (QUEUED or RUNNING) run is allowed per project at a time.
     """
+    source_url = str(payload.source_url) if payload.source_url else None
+
     try:
-        run_state = create_run(project_root, project)
+        run_state = create_run(
+            project_root=project_root,
+            project=project,
+            question=payload.question,
+            source_url=source_url,
+        )
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
-
-    source_url = str(payload.source_url) if payload.source_url else None
 
     background_tasks.add_task(
         execute_run,
@@ -88,3 +100,52 @@ async def get_run_status(
         error=run_state.get("error"),
         result_keys=run_state.get("result_keys", []),
     )
+
+
+@router.get(
+    "/{project}/runs",
+    response_model=RunHistoryResponse,
+)
+async def list_run_history(
+    project: str,
+    limit: int = Query(default=50, ge=1, le=500, description="Max runs to return"),
+    project_root: Path = Depends(get_project_root),
+) -> RunHistoryResponse:
+    """Return the run history for a project from the SQLite store.
+
+    Requires the persistence layer to be initialised (``QUAERO_DB_PATH``
+    or the default ``quaero.db`` in the project root).  Returns HTTP 503 if
+    the database cannot be read, so an outage is distinguishable from a
+    project with no runs.  ``total`` is the full number of runs for the
+    project; ``runs`` holds at most ``limit`` of them, newest first.
+    """
+    from db import store
+
+    try:
+        rows = store.list_runs(project_name=project, limit=limit)
+        total = store.count_runs(project_name=project)
+    except sqlite3.Error as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Run history is temporarily unavailable.",
+        ) from exc
+
+    from api.schemas import RunHistoryItem
+
+    items = [
+        RunHistoryItem(
+            run_id=r["run_id"],
+            project=r["project_name"],
+            status=RunStatus(r["status"]),
+            question=r.get("question"),
+            source_url=r.get("source_url"),
+            created_at=r["created_at"],
+            started_at=r.get("started_at"),
+            completed_at=r.get("completed_at"),
+            error=r.get("error"),
+            artifact_path=r.get("artifact_path"),
+        )
+        for r in rows
+    ]
+
+    return RunHistoryResponse(project=project, runs=items, total=total)

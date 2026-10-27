@@ -690,3 +690,108 @@ class TestPipelineRunnerCompat:
         from api.pipeline_api import implementation_status
 
         assert implementation_status() == "planned"
+
+
+# ---------------------------------------------------------------------------
+# Run history and SQLite mart registration (Phase 2 review regressions)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def history_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    from db import store
+
+    db_file = tmp_path / "history.db"
+    monkeypatch.setenv("QUAERO_DB_PATH", str(db_file))
+    monkeypatch.setenv("QUAERO_API_KEY", _TEST_KEY)
+    store.init_db(db_file)
+    return db_file
+
+
+class TestRunHistoryEndpoint:
+    def test_sqlite_error_is_503_not_empty_history(
+        self, api_client: TestClient, history_db: Path
+    ) -> None:
+        for suffix in ("", "-wal", "-shm"):
+            history_db.with_name(history_db.name + suffix).unlink(missing_ok=True)
+        history_db.write_bytes(b"not a sqlite database" * 100)
+
+        resp = api_client.get("/projects/demo/runs", headers=_auth())
+
+        assert resp.status_code == 503
+
+    def test_uninitialised_schema_is_503(
+        self, api_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("QUAERO_DB_PATH", str(tmp_path / "empty.db"))
+        monkeypatch.setenv("QUAERO_API_KEY", _TEST_KEY)
+
+        resp = api_client.get("/projects/demo/runs", headers=_auth())
+
+        assert resp.status_code == 503
+
+    def test_valid_empty_history_is_200(self, api_client: TestClient, history_db: Path) -> None:
+        resp = api_client.get("/projects/demo/runs", headers=_auth())
+
+        assert resp.status_code == 200
+        assert resp.json() == {"project": "demo", "runs": [], "total": 0}
+
+    def test_total_counts_all_runs_when_limit_applies(
+        self, api_client: TestClient, history_db: Path
+    ) -> None:
+        from db import store
+
+        store.register_project("demo", "/demo", history_db)
+        for _ in range(5):
+            store.create_run(str(uuid.uuid4()), "demo", db_path=history_db)
+
+        body = api_client.get("/projects/demo/runs?limit=2", headers=_auth()).json()
+
+        assert len(body["runs"]) == 2
+        assert body["total"] == 5
+
+
+class TestMartRegistration:
+    def _run(self, root: Path, project: str, result: dict) -> None:
+        project_dir = root / "projects" / project
+        project_dir.mkdir(parents=True, exist_ok=True)
+        (project_dir / "project_config.json").write_text("{}", encoding="utf-8")
+        state = create_run(root, project)
+        with patch("app.pipeline_runner.run_project_from_config", return_value=result):
+            execute_run(root, state["run_id"], project, "q?", None)
+
+    def test_registers_only_existing_parquet_marts(self, tmp_path: Path, history_db: Path) -> None:
+        from db import store
+
+        marts_dir = tmp_path / "projects" / "demo" / "marts"
+        marts_dir.mkdir(parents=True)
+        pd.DataFrame({"a": [1]}).to_parquet(marts_dir / "mart_real.parquet", index=False)
+        result = {
+            "project_mode": "single",
+            "profiling": {"output_path": "projects/demo/metadata/profile.json"},
+            "marts": {
+                "mart_real": "projects/demo/marts/mart_real.parquet",
+                "mart_missing": "projects/demo/marts/mart_missing.parquet",
+                "not_parquet": "projects/demo/marts/notes.txt",
+            },
+        }
+
+        self._run(tmp_path, "demo", result)
+
+        marts = store.list_marts_db("demo", history_db)
+        assert [m["mart_name"] for m in marts] == ["mart_real"]
+        assert marts[0]["parquet_path"] == str(tmp_path / "projects/demo/marts/mart_real.parquet")
+
+    def test_result_without_marts_registers_nothing(self, tmp_path: Path, history_db: Path) -> None:
+        from db import store
+
+        self._run(tmp_path, "demo", {"project_mode": "single", "profiling": {}})
+
+        assert store.list_marts_db("demo", history_db) == []
+
+    def test_result_keys_contract_unchanged(self, tmp_path: Path, history_db: Path) -> None:
+        self._run(tmp_path, "demo", {"project_mode": "single", "marts": {}})
+
+        run_file = next((tmp_path / "runs").glob("*.json"))
+        state = json.loads(run_file.read_text(encoding="utf-8"))
+        assert state["result_keys"] == ["project_mode", "marts"]
