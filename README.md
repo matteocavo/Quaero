@@ -486,3 +486,12 @@ Run the automated tests with:
 ```bash
 pytest tests
 ```
+
+## License
+
+Quaero is open source software released under the MIT License.
+
+Copyright (c) 2026 Matteo Cavo. See [LICENSE](LICENSE).
+
+Third-party libraries and external datasets remain subject to their respective upstream terms.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
