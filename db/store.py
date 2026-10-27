@@ -214,6 +214,11 @@ def transition_run(
     Allowed transitions:
       QUEUED → RUNNING
       RUNNING → COMPLETED | FAILED
+      QUEUED → FAILED
+
+    Raises KeyError if the run does not exist and ValueError if its current
+    status does not allow the transition (including when another caller
+    changed the status first).
     """
     allowed: dict[str, list[str]] = {
         "RUNNING": ["QUEUED"],
@@ -223,31 +228,34 @@ def transition_run(
     if new_status not in allowed:
         raise ValueError(f"Invalid target status: {new_status!r}")
 
-    with get_connection(db_path) as conn:
-        row = conn.execute("SELECT status FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-        if row is None:
-            raise KeyError(f"run_id not found: {run_id!r}")
-        current = row["status"]
-        if current not in allowed[new_status]:
-            raise ValueError(f"Cannot transition {current!r} → {new_status!r} for run {run_id!r}")
+    ts_col = {
+        "RUNNING": "started_at",
+        "COMPLETED": "completed_at",
+        "FAILED": "completed_at",
+    }[new_status]
+    sources = allowed[new_status]
+    placeholders = ",".join("?" * len(sources))
 
-        ts_col = {
-            "RUNNING": "started_at",
-            "COMPLETED": "completed_at",
-            "FAILED": "completed_at",
-        }[new_status]
-
-        with conn:
-            conn.execute(
-                f"""
-                UPDATE runs
-                SET status = ?,
-                    {ts_col} = ?,
-                    error = COALESCE(?, error),
-                    artifact_path = COALESCE(?, artifact_path)
-                WHERE run_id = ?
-                """,
-                (new_status, _now(), error, artifact_path, run_id),
+    # Single conditional UPDATE: the status check and the write are one atomic
+    # statement, so concurrent callers cannot both win the same transition.
+    with get_connection(db_path) as conn, conn:
+        cursor = conn.execute(
+            f"""
+            UPDATE runs
+            SET status = ?,
+                {ts_col} = ?,
+                error = COALESCE(?, error),
+                artifact_path = COALESCE(?, artifact_path)
+            WHERE run_id = ? AND status IN ({placeholders})
+            """,
+            (new_status, _now(), error, artifact_path, run_id, *sources),
+        )
+        if cursor.rowcount == 0:
+            row = conn.execute("SELECT status FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"run_id not found: {run_id!r}")
+            raise ValueError(
+                f"Cannot transition {row['status']!r} → {new_status!r} for run {run_id!r}"
             )
 
 
@@ -288,6 +296,15 @@ def list_runs(
             (project_name, limit),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def count_runs(project_name: str, db_path: Path | None = None) -> int:
+    """Return the total number of runs recorded for a project."""
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM runs WHERE project_name = ?", (project_name,)
+        ).fetchone()
+        return int(row["n"])
 
 
 # ---------------------------------------------------------------------------

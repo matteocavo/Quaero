@@ -147,4 +147,9 @@ class RunHistoryItem(BaseModel):
 class RunHistoryResponse(BaseModel):
     project: str
     runs: list[RunHistoryItem]
-    total: int
+    total: int = Field(
+        description=(
+            "Total number of runs recorded for the project, independent of ``limit``. "
+            "``len(runs)`` may be smaller than ``total`` when the history is truncated."
+        ),
+    )
