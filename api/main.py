@@ -41,7 +41,9 @@ Both tools support HTTP / REST resources with custom headers.  Configure the
 
 from __future__ import annotations
 
+import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,11 +51,28 @@ from fastapi.responses import JSONResponse
 
 from api.routers import health, projects, runs
 
+_LOGGER = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # Application
 # ---------------------------------------------------------------------------
 
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Initialise the SQLite persistence layer on startup (idempotent)."""
+    try:
+        from db import store
+
+        store.init_db()
+        _LOGGER.info("DB: persistence layer initialised.")
+    except Exception as exc:
+        _LOGGER.warning("DB: could not initialise persistence layer: %s", exc)
+    yield
+
+
 app = FastAPI(
+    lifespan=_lifespan,
     title="Quaero API",
     description=(
         "REST interface over the Quaero analytics pipeline. "
