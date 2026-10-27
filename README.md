@@ -21,6 +21,19 @@ source to mart table, every transformation is logged and every column is scored.
 
 Dataset → Question → Analytical Marts → Dashboard
 
+## What's new in v0.6.0
+
+v0.6.0 - *Operations Console* - adds a local Streamlit console for operating Quaero through the
+API. See [CHANGELOG.md](CHANGELOG.md) and [console/README.md](console/README.md).
+
+- **Operations console** (`console/`): project explorer, pipeline operations with run history,
+  mart explorer, data quality and anomalies, and a lineage viewer drawn from `lineage.json`;
+  it is a client of the API only and `app/ui.py` is unchanged
+- **API read endpoints**: `GET /projects/{project}/overview`, `/data-quality`, `/anomalies`,
+  `/lineage`, behind the existing API key
+- **Licensing notices**: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) documents the terms of the
+  public datasets, runtime-loaded scripts and dependencies; Quaero stays MIT
+
 ## What's new in v0.5.0
 
 v0.5.0 - *API & Persistence Foundation* - puts an HTTP interface and a durable run

@@ -7,7 +7,10 @@ documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/
 
 ## [Unreleased]
 
-Candidate for v0.6.0 - Operations Console. Not released.
+## [0.6.0] - 2026-10-27 - Operations Console
+
+Quaero gains a local operations console on top of the API. The analytical pipeline
+(`pipelines/`, `kpi_engine/`, `app/`) and the persistence layer are unchanged.
 
 ### Added
 - **Operations console** (`console/`, Streamlit): Project Explorer, Pipeline Operations (start a run,
@@ -21,15 +24,25 @@ Candidate for v0.6.0 - Operations Console. Not released.
   framed anomalies; multi-dataset runs produce only the raw anomaly report).
 - Design for a future human review queue (states, rules, data model, audit trail) in
   `QUAERO_PHASE3_OPERATIONS_CONSOLE.md`; nothing is persisted yet.
+- `THIRD_PARTY_NOTICES.md`: attribution and upstream terms for the public datasets used by the demo
+  projects and loaders (World Bank, DataHub, Berkeley Earth, Our World in Data, NASA, NSIDC),
+  Mermaid and the Python dependencies, plus a `## License` section in the README. Quaero itself
+  stays under the MIT License.
 
 ### Changed
 - `POST /projects/{project}/run` now validates the project identifier (letters, digits, underscores,
   hyphens) and returns `422` otherwise, matching the read endpoints. All existing project names comply.
 - API documentation uses `127.0.0.1` as the local bind address instead of `0.0.0.0`.
+- The README describes the demo data and the CI checks, and CI `compileall` now also covers `db/` and
+  `console/`.
 
 ### Security
 - Artifact readers validate identifiers, keep resolved paths inside `metadata/`, cap artifact size at
   10 MB and never include file paths or tracebacks in error responses.
+
+### Verification
+- 468 tests passing (1 skipped: symlink test, covered by an equivalent test),
+  `ruff format --check`, `ruff check` and `compileall` clean, CI green on `main`.
 
 ## [0.5.0] - 2026-10-27 - API & Persistence Foundation
 
@@ -71,4 +84,6 @@ Hardening of the persistence layer found during pre-release review:
 ### Verification
 - 284 tests passing, `ruff format --check`, `ruff check` and `compileall` clean, CI green on `main`.
 
+[Unreleased]: https://github.com/matteocavo/Quaero/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/matteocavo/Quaero/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/matteocavo/Quaero/compare/v0.4.0...v0.5.0
