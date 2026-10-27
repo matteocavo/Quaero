@@ -422,6 +422,14 @@ A small runnable sample dataset is included at:
 
 `sample_data/release_impact_sample.csv`
 
+It is synthetic demonstration data created for Quaero and distributed under the MIT License; the
+`projects/release_impact/` demo project was generated from it.
+
+For a config-driven example built on public data, see
+`projects/global_economic_indicators/project_config.json`. Those datasets are downloaded when the
+project is run and keep their providers' terms (see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+
 `sample_data/` should contain only tiny demo files or lightweight
 documentation. Large real datasets should not be committed to the repository.
 
@@ -440,7 +448,9 @@ Recommended guidance:
   `projects/<project_name>/raw/`
 
 This keeps the repository lightweight while still making it easy to test the
-pipeline with realistic external data.
+pipeline with realistic external data. External datasets remain subject to their
+providers' terms; check them before redistributing any data or outputs derived from them
+(see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
 
 ## Streamlit UI
 
@@ -464,12 +474,35 @@ project folder and reuses the standard config-driven pipeline path, so the UI is
 now aligned with Quaero's actual multi-dataset architecture instead of exposing
 only the single-dataset path.
 
+## Operations console
+
+`console/` is a local Streamlit console for operating Quaero through the API: explore projects,
+start runs and follow their status and history, browse marts, inspect data quality, anomalies and
+lineage. It is a thin client of the FastAPI (it never reads artifacts or the database directly) and is
+separate from the pipeline UI in `app/ui.py`, which is unchanged.
+
+```bash
+export QUAERO_API_KEY="your-secret-key"
+uvicorn api.main:app --host 127.0.0.1 --port 8000      # terminal 1
+streamlit run console/app.py                           # terminal 2 (same QUAERO_API_KEY)
+```
+
+See [console/README.md](console/README.md) for the screens, configuration and limitations.
+
 ## Testing
 
 Run the automated tests with:
 
 ```bash
 pytest tests
+```
+
+CI also runs the formatting, lint and byte-compile checks:
+
+```bash
+ruff format --check .
+ruff check .
+python -m compileall app api db console pipelines kpi_engine tests
 ```
 
 ## License
