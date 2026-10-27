@@ -34,4 +34,4 @@ jobs:
         run: pytest tests
 
       - name: Validate pipeline modules
-        run: python -m compileall app api pipelines kpi_engine tests
+        run: python -m compileall app api db console pipelines kpi_engine tests
