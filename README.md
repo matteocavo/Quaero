@@ -218,7 +218,7 @@ The module-friendly helpers exposed by `app/main.py` are:
 from app.main import run_pipeline, run_project_pipeline
 
 result = run_pipeline(
-    dataset_path="sample_data/release_impact_sample.csv",
+    dataset_path="path/to/your_dataset.csv",
     source_name="release_impact",
     question="Which release years generate the strongest average streams?",
     project_root=".",
@@ -246,7 +246,7 @@ need:
 Use the CLI to run the pipeline on a local file or direct URL:
 
 ```bash
-python -m app.main sample_data/release_impact_sample.csv \
+python -m app.main path/to/your_dataset.csv \
   --source-name "release_impact" \
   --question "Which release years generate the strongest average streams?" \
   --project-root .
@@ -255,7 +255,7 @@ python -m app.main sample_data/release_impact_sample.csv \
 PowerShell example on one line:
 
 ```powershell
-python -m app.main sample_data/release_impact_sample.csv --source-name "release_impact" --question "Which release years generate the strongest average streams?" --project-root .
+python -m app.main path/to/your_dataset.csv --source-name "release_impact" --question "Which release years generate the strongest average streams?" --project-root .
 ```
 
 `--metric-column` and `--dimension-column` are now optional overrides. The pipeline uses
@@ -280,7 +280,7 @@ manual override.
 Manual override example:
 
 ```bash
-python -m app.main sample_data/release_impact_sample.csv \
+python -m app.main path/to/your_dataset.csv \
   --source-name "release_impact" \
   --question "Which release years generate the strongest average streams?" \
   --metric-column streams \
@@ -418,12 +418,14 @@ inspecting raw Parquet files directly.
 
 ## Demo dataset
 
-A small runnable sample dataset is included at:
+Quaero does not ship a sample dataset: point the CLI at any local CSV or Parquet file that has a
+numeric metric column and a categorical or time column (see the examples above).
 
-`sample_data/release_impact_sample.csv`
+For a config-driven example, `projects/global_economic_indicators/project_config.json` downloads
+public datasets at run time; their terms are described in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-`sample_data/` should contain only tiny demo files or lightweight
-documentation. Large real datasets should not be committed to the repository.
+Large real datasets should not be committed to the repository.
 
 ## Using external datasets
 
@@ -471,3 +473,12 @@ Run the automated tests with:
 ```bash
 pytest tests
 ```
+
+## License
+
+Quaero is open source software released under the MIT License.
+
+Copyright (c) 2026 Matteo Cavo. See [LICENSE](LICENSE).
+
+Third-party libraries and external datasets remain subject to their respective upstream terms.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

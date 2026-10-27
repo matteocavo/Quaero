@@ -7,8 +7,16 @@ from app.pipeline_runner import run_pipeline
 
 
 def test_end_to_end_pipeline_with_sample_dataset(tmp_path: Path) -> None:
-    project_root = Path(__file__).resolve().parents[1]
-    csv_path = project_root / "sample_data" / "release_impact_sample.csv"
+    csv_path = tmp_path / "release_impact_sample.csv"
+    csv_path.write_text(
+        "release_year,provider,catalog,streams\n"
+        "2015,Provider A,Catalog 1,50\n"
+        "2016,Provider B,Catalog 1,75\n"
+        "2017,Provider A,Catalog 2,100\n"
+        "2018,Provider C,Catalog 2,125\n"
+        "2019,Provider B,Catalog 3,150\n",
+        encoding="utf-8",
+    )
 
     result = run_pipeline(
         source_path=csv_path,
