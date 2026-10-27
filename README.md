@@ -21,6 +21,26 @@ source to mart table, every transformation is logged and every column is scored.
 
 Dataset → Question → Analytical Marts → Dashboard
 
+## What's new in v0.5.0
+
+v0.5.0 - *API & Persistence Foundation* - puts an HTTP interface and a durable run
+history on top of the unchanged pipeline. See [CHANGELOG.md](CHANGELOG.md) and
+[api/README.md](api/README.md).
+
+- **FastAPI layer** (`api/`): browse projects, summaries and paginated mart previews,
+  trigger async runs and poll their status; API-key authentication (fail-closed),
+  path-traversal and SSRF protection
+- **SQLite persistence** (`db/store.py`): project registry, run lifecycle and mart
+  registry with atomic state transitions; run history via
+  `GET /projects/{project}/runs`; no new dependency
+
+Run the API locally with:
+
+```bash
+export QUAERO_API_KEY="your-secret-key"
+uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
 ## What's new in v0.4.0
 
 v0.4.0 closes two gaps left from the original roadmap: making the lineage
