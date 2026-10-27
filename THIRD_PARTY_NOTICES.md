@@ -80,24 +80,6 @@ Anyone running these loaders is responsible for complying with the provider's te
 Datasets that a user uploads or points Quaero at (including the example URLs shown in the
 documentation) remain subject to the terms of their owners.
 
-### 1.6 Sample data from the Release Impact project
-
-`sample_data/release_impact_sample.csv` is sample data that comes from the author's separate project
-**Maztek - Release Impact**. It was not created originally for Quaero, and this repository makes no
-statement about whether its values are synthetic or real.
-
-- **Ownership and terms:** the file belongs to the Maztek - Release Impact project, and its terms
-  are those of that project. It is a dataset, not Quaero software, so it is **not automatically
-  covered by Quaero's MIT License**; the MIT License of the Quaero software is unchanged and applies
-  to Quaero's code and documentation.
-- **Attribution:** it is not attributed to any of the external providers listed in this file.
-- **Generated outputs:** the README documents running Quaero on this file to produce the
-  `release_impact` demo project; outputs generated from it reflect its values and follow the same
-  terms.
-- **Test suite:** data embedded in the test suite's source files is part of Quaero's test code and is
-  covered by the MIT License of that code. This does not extend to the sample file above or to the
-  external datasets in this document.
-
 ## 2. Code loaded at run time
 
 ### 2.1 Mermaid

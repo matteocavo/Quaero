@@ -47,7 +47,7 @@ python -m app.main <source_path_or_url> \
 from app.main import run_pipeline, run_project_pipeline
 
 result = run_pipeline(
-    dataset_path="sample_data/release_impact_sample.csv",
+    dataset_path="path/to/your_dataset.csv",
     source_name="release_impact",
     question="Which release years generate the strongest average streams?",
     project_root=".",
@@ -78,10 +78,10 @@ The UI supports both:
 
 ---
 
-## Quick Start (sample data, no network required)
+## Quick Start (your own local file, no network required)
 
 ```bash
-python -m app.main sample_data/release_impact_sample.csv \
+python -m app.main path/to/your_dataset.csv \
   --source-name "release_impact" \
   --question "Which release years generate the strongest average streams?" \
   --project-root "."
