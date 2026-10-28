@@ -502,6 +502,23 @@ streamlit run console/app.py                           # terminal 2 (same QUAERO
 
 See [console/README.md](console/README.md) for the screens, configuration and limitations.
 
+## Web app
+
+`frontend/` is a React + TypeScript web app (Vite) with two modes:
+
+- **Public Demo** (default): bundled demo fixtures and in-browser CSV profiling. It makes no network
+  requests and is the only part intended for static hosting (GitHub Pages).
+- **Local Operations**: talks to your local Quaero API through a same-origin dev proxy that adds the API
+  key from the server's environment, so the key never reaches the browser.
+
+```bash
+export QUAERO_API_KEY="your-secret-key"
+uvicorn api.main:app --host 127.0.0.1 --port 8000     # terminal 1
+cd frontend && npm ci && npm run dev                  # terminal 2 -> http://127.0.0.1:3000
+```
+
+See [frontend/README.md](frontend/README.md) for modes, security, tests and the GitHub Pages setup.
+
 ## Testing
 
 Run the automated tests with:

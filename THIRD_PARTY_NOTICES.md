@@ -122,7 +122,34 @@ environment (for example with `pip show <package>` or a license-scanning tool).
 | pytest | MIT | tests (development) |
 | ruff | MIT | formatting and linting (development) |
 
-## 4. Keeping this file current
+## 4. Web frontend (`frontend/`)
+
+The React web app is MIT-licensed Quaero code. Its npm dependencies keep their own licenses. The table
+lists the license declared in `frontend/package-lock.json` for the direct dependencies; the production
+dependency tree (6 packages including React's `scheduler`) is MIT (5) and ISC (1), and the whole lockfile
+contains no GPL, AGPL, LGPL or non-commercial licenses. Transitive development packages are not
+enumerated.
+
+| Package | Declared license | Used for |
+|---|---|---|
+| react, react-dom | MIT | UI runtime (in the bundle) |
+| lucide-react | ISC | icons (in the bundle) |
+| clsx, tailwind-merge | MIT | class names (in the bundle) |
+| tailwindcss, @tailwindcss/vite | MIT | styling (build time) |
+| vite, @vitejs/plugin-react | MIT | build and dev server |
+| typescript | Apache-2.0 | type checking |
+| vitest, jsdom, @testing-library/* | MIT | tests |
+
+Build-time tooling includes `lightningcss` (MPL-2.0) and `caniuse-lite` data (CC BY 4.0); neither is
+shipped in the bundle. The app loads no web fonts or other third-party resources: it uses the
+system font stack.
+
+Data bundled with the web demo: the demo fixtures and the `release_impact` sample are Quaero demo
+data (section 1.6). The "macro indicators" sample in the browser CSV profiler is an illustrative set of
+rounded values inspired by the World Bank World Development Indicators (CC BY 4.0); it is not an
+official extract and must not be cited as one.
+
+## 5. Keeping this file current
 
 Update this file whenever a dataset source, a dataset loader, a runtime-loaded script or a dependency
 is added or changed, and re-verify the upstream terms before each release that changes them.
