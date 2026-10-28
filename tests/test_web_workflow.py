@@ -68,4 +68,14 @@ def test_build_and_test_steps_run_for_pull_requests(workflow: dict[str, Any]) ->
     for name in ("Install dependencies", "Type check", "Test", "Build for GitHub Pages"):
         assert name in by_name
         assert "if" not in by_name[name], f"{name} must not be conditional"
-    assert by_name["Build for GitHub Pages"]["env"]["VITE_BASE_PATH"] == "/Quaero/"
+    assert by_name["Build for GitHub Pages"]["run"] == "npm run build:pages"
+    assert "Test the built site in a real browser (Chrome)" in by_name
+    assert by_name["Test the built site in a real browser (Chrome)"]["run"] == "npm run test:e2e"
+
+
+def test_pages_build_is_demo_only_under_the_pages_base_path() -> None:
+    script = (WORKFLOW.parents[2] / "frontend" / "scripts" / "build-pages.mjs").read_text(
+        encoding="utf-8"
+    )
+    assert "VITE_BASE_PATH: '/Quaero/'" in script
+    assert "VITE_DEMO_ONLY: 'true'" in script
