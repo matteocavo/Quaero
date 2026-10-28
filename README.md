@@ -21,7 +21,7 @@ source to mart table, every transformation is logged and every column is scored.
 
 Dataset → Question → Analytical Marts → Dashboard
 
-## What's new in v0.8.0 (Unreleased)
+## What's new in v0.8.0
 
 v0.8.0 - *Local Operations & Web App* - completes the local React + FastAPI + Python pipeline
 application while keeping the public GitHub Pages demo 100% browser-only. See [CHANGELOG.md](CHANGELOG.md),
@@ -39,6 +39,15 @@ application while keeping the public GitHub Pages demo 100% browser-only. See [C
   `127.0.0.1` only with ephemeral session-key generation and automatic process cleanup
 - **Public Demo & Browser Workspace**: zero-backend interactive mode for GitHub Pages with in-browser
   CSV profiling, filtering, group-by query builder, charts, and exports
+- **Data lifecycle management**: uploads are temporary until a project uses them; a Local Storage screen and
+  cleanup policies (ask on exit, auto cleanup, keep files) delete only after confirmation
+- **Suggested analyses**: deterministic in-browser rules propose measures, groupings and analyses with the reason
+  and the limits
+- **Transparent question interpretation**: Quaero shows how it reads a question before running it and refuses what
+  the pipeline cannot answer instead of answering something else
+- **Correct aggregation selection**: `average`, `sum` or `count`, chosen explicitly or read from the question
+- **Windows run polling reliability**: run status polling no longer fails intermittently
+- **Dark / Light / System themes**: Dark by default, choice remembered only when made explicitly
 
 ## What's new in v0.6.0
 
