@@ -71,8 +71,9 @@ In **Local Operations** mode, opening **Import & Profile Data** (or clicking **+
    - Select a `.csv`, `.tsv`, or `.txt` file from disk or reuse a previously uploaded dataset.
    - The file is validated and stored by FastAPI in `<QUAERO_PROJECT_ROOT>/uploads/upload_<12hex>.csv` with schema metadata in `upload_<12hex>.json`.
 2. **Configure (Create Local Project)**:
-   - Set a project name (normalized to lowercase `snake_case`), analytical question/objective, and optional metric (`numeric` column), dimension, and time column overrides.
-   - Clicking **Create Project & Run Pipeline** (or **Create Project Only**) calls `POST /projects`, writing `projects/<project>/project_config.json` and registering the project in SQLite. Existing projects are never overwritten (`409 Conflict`).
+   - Set a project name (normalized to lowercase `snake_case`), analytical question/objective, and optional metric (`numeric` column), dimension, aggregation (average, total, count) and time column choices. A choice you make always wins over the wording of the question.
+   - **Check how Quaero reads this question** (`InterpretationPanel`, `POST /uploads/{upload_id}/interpretation`) shows the measure, grouping, aggregation, order, time column and filters, and whether each was chosen by you, read from the question or assumed. Nothing is created or run by the check. A question the pipeline cannot answer (median, month/year grouping without such a column, a period or value filter, a comparison, two measures, "why", a forecast) is explained and cannot be run; a vague one asks for a measure and a grouping. Changing the question or any choice makes the check stale, so the run always matches what you saw.
+   - Clicking **Confirm interpretation, create project & run** (or **Create Local Project**) calls `POST /projects`, writing `projects/<project>/project_config.json` and registering the project in SQLite. Existing projects are never overwritten (`409 Conflict`).
 3. **Run (Launch Real Python Pipeline)**:
    - Triggers `POST /projects/{project}/run` (`202 Accepted`) and polls `GET /projects/{project}/runs/{run_id}` until completion.
    - Executes the full Python pipeline: ingestion, profiling, per-column Data Quality scoring (`dq_score_*.json`), cleaning log (`cleaning_log_*.json`), semantic inference, Parquet + SQL marts, Anomaly Framing v2 (`anomaly_report_v2_*.json`), column-level Lineage (`lineage.json` + `lineage.html`), Power BI schema (`pbi_schema.json`), and `final_summary_report.json`.
@@ -105,6 +106,15 @@ Remove-Item -Force .\uploads\<upload_id>.*
 Remove-Item -Recurse -Force .\runs
 Remove-Item -Force .\quaero.db*
 ```
+
+## Theme
+
+Dark is the default. **Light** and **System** (follows the device, live) are in the header. Only a choice you make is
+stored (`quaero_theme_preference` in `localStorage`); opening the app writes nothing, so the default can change later
+without being frozen in every browser. The old `quaero_theme` key, written for every first-time visitor by earlier
+versions, is migrated once: a stored `dark` becomes an explicit choice, a stored `light` is dropped because it cannot be
+told apart from the automatic value. The theme is applied by an inline script in `index.html` before the first paint
+(no flash), and blocked or full storage never breaks the page. Tests: `src/theme.test.tsx`, `e2e/theme.spec.ts`.
 
 ## Public site (GitHub Pages) behaviour
 

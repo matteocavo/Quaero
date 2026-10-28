@@ -105,6 +105,57 @@ List all stored CSV uploads (newest first) or fetch metadata for a single `uploa
 
 ---
 
+### `POST /uploads/{upload_id}/interpretation`
+Shows how Quaero reads a question for an uploaded dataset, **without creating a project or running anything** (`200 OK`).
+It uses the same rules as the pipeline, so what is shown is what a run will do.
+
+```json
+{
+  "question": "Which product has the most revenue?",
+  "metric_column": null,
+  "dimension_column": null,
+  "aggregation": null,
+  "time_column": null
+}
+```
+
+All fields except `question` are optional explicit choices; an explicit choice always wins over the wording.
+
+```json
+{
+  "question": "Which product has the most revenue?",
+  "language": "en",
+  "status": "ready",
+  "metric": {"column": "revenue", "origin": "auto_inferred"},
+  "dimension": {"column": "product", "origin": "auto_inferred"},
+  "aggregation": {"value": "sum", "origin": "auto_inferred"},
+  "ordering": {"value": "highest", "origin": "auto_inferred"},
+  "time": {"column": null, "origin": null, "grouping": null},
+  "filters": {"requested": false},
+  "issues": [{"code": "count_read_as_total", "severity": "note", "message": "...", "suggestion": null}],
+  "summary": "Total of revenue for each product, highest first.",
+  "suggested_questions": []
+}
+```
+
+- `status`: `ready` (answered as described), `needs_input` (a measure or grouping is missing: say which, or choose
+  it) or `unsupported` (the question asks for something the pipeline does not calculate). A run is refused for
+  `needs_input` and `unsupported`; the same text is returned as the error of the `FAILED` run.
+- `origin` of each part: `user_provided` (explicit choice), `auto_inferred` (read from the question or the data),
+  `assumed_default` (nothing in the question; a documented default was used). There are no confidence scores.
+- `issues[].severity`: `unsupported` and `needs_input` block the run; `warning` and `note` inform (for example "the
+  average is assumed", "the question groups by month but the column you chose is used").
+- **Available aggregations:** `average`, `sum`, `count` (with order `highest` or `lowest`), over one measure and one
+  grouping. Median, minimum, maximum, percentage, ratio, grouping by month/year when the data has no such column,
+  period and value filters, comparisons of two values, two measures at once, causal ("why") questions and forecasts
+  are **refused with the reason** and never answered with a different calculation.
+- English and Italian keywords are understood. The result is deterministic; no model is used (the optional LLM
+  fallback is not used on this path).
+
+**Errors:** `404` if `upload_id` does not exist; `422` if the question is blank or too long.
+
+---
+
 ### `POST /projects`
 Create a new local Quaero project from an uploaded CSV dataset (`201 Created`). Writes `projects/<project>/project_config.json` and registers the project in SQLite. Existing projects are preserved (`409 Conflict` if the directory already exists).
 
@@ -116,6 +167,7 @@ Create a new local Quaero project from an uploaded CSV dataset (`201 Created`). 
   "dataset_name": "logistics_2025",
   "metric_column": "freight_cost",
   "dimension_column": "carrier",
+  "aggregation": "average",
   "time_column": "ship_year"
 }
 ```
@@ -128,6 +180,7 @@ Create a new local Quaero project from an uploaded CSV dataset (`201 Created`). 
 | `dataset_name` | No | Optional logical dataset alias (defaults to normalized project name) |
 | `metric_column` | No | Optional override; must exist in the uploaded CSV and have `numeric` type |
 | `dimension_column` | No | Optional override; must exist in the uploaded CSV and differ from `metric_column` |
+| `aggregation` | No | `average`, `sum` or `count`; wins over the wording of the question |
 | `time_column` | No | Optional time column present in the uploaded CSV |
 
 **Errors:** `404` if `upload_id` does not exist; `409` if the project already exists; `422` if column names are invalid or `metric_column` is not numeric.
@@ -215,7 +268,8 @@ Trigger an async pipeline run. Returns immediately with `202 Accepted`.
   "question": "Which release years have the strongest streams?",
   "source_url": "https://example.com/data.csv",
   "metric_column": "streams",
-  "dimension_column": "release_year"
+  "dimension_column": "release_year",
+  "aggregation": "sum"
 }
 ```
 
@@ -225,6 +279,7 @@ Trigger an async pipeline run. Returns immediately with `202 Accepted`.
 | `source_url` | No | Must resolve to a public IP (SSRF protected); omit for config-backed / upload-backed projects |
 | `metric_column` | No | Optional manual metric column override |
 | `dimension_column` | No | Optional manual dimension column override |
+| `aggregation` | No | `average`, `sum` or `count`; wins over the wording of the question |
 
 **Response (`202`):**
 
@@ -256,6 +311,8 @@ Poll the status of a pipeline run.
 ```
 
 **Status values:** `QUEUED` → `RUNNING` → `COMPLETED` | `FAILED`
+
+A question that cannot be answered as asked ends as `FAILED` with the explanation in `error` and no result is written. Reading the run file is safe while it is being updated: on Windows the file is replaced atomically with a bounded retry, so polling does not return `500` during a write.
 
 **Errors:** `404` if run_id doesn't exist or belongs to a different project.
 
