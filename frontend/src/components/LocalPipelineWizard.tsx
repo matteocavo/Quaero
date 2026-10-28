@@ -14,10 +14,13 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
+  Aggregation,
   ProjectCreateResponse,
+  QuestionInterpretation,
   RunAcceptedResponse,
   UploadResponse,
 } from '../types/api';
+import { InterpretationPanel } from './InterpretationPanel';
 
 interface LocalPipelineWizardProps {
   onProjectCreated?: (
@@ -58,7 +61,12 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
   const [metricColumn, setMetricColumn] = useState('');
   const [dimensionColumn, setDimensionColumn] = useState('');
   const [timeColumn, setTimeColumn] = useState('');
+  const [aggregation, setAggregation] = useState<Aggregation | ''>('');
   const [formError, setFormError] = useState<string | null>(null);
+  // How Quaero reads the question. It is only valid for the exact inputs it was computed for.
+  const [interpretation, setInterpretation] = useState<QuestionInterpretation | null>(null);
+  const [interpretedFor, setInterpretedFor] = useState('');
+  const [interpreting, setInterpreting] = useState(false);
 
   const selectedUpload: UploadResponse | undefined = useMemo(() => {
     if (!uploads.length) return undefined;
@@ -87,6 +95,8 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
     setMetricColumn(defaultMetric);
     setDimensionColumn(defaultDim);
     setTimeColumn(defaultTime);
+    setAggregation('');
+    setInterpretation(null);
 
     if (defaultMetric && defaultDim) {
       setQuestion(
@@ -118,7 +128,7 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
     return [
       `Which ${dLabel} generates the highest average ${mLabel}?`,
       `What is the total ${mLabel} by ${dLabel}?`,
-      `Which ${dLabel} has the highest ${mLabel} across the dataset?`,
+      `Which ${dLabel} has the highest total ${mLabel}?`,
     ];
   }, [selectedUpload, metricColumn, dimensionColumn]);
 
@@ -143,8 +153,54 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
     }
   };
 
+  const inputsKey = JSON.stringify([
+    selectedUpload?.upload_id ?? null,
+    question.trim(),
+    metricColumn,
+    dimensionColumn,
+    aggregation,
+    timeColumn,
+  ]);
+  const interpretationCurrent = interpretation !== null && interpretedFor === inputsKey;
+  // The pipeline is only started on an interpretation the user has seen, for exactly what is in the form now.
+  const canConfirmRun = interpretationCurrent && interpretation?.status === 'ready';
+
+  const handleCheckInterpretation = async () => {
+    setFormError(null);
+    if (!selectedUpload) {
+      setFormError('Upload or select a CSV dataset first.');
+      return;
+    }
+    if (!question.trim()) {
+      setFormError('Enter an analytical question or objective first.');
+      return;
+    }
+    setInterpreting(true);
+    try {
+      const result = await apiClient.interpretQuestion(selectedUpload.upload_id, {
+        question: question.trim(),
+        metric_column: metricColumn || null,
+        dimension_column: dimensionColumn || null,
+        aggregation: aggregation || null,
+        time_column: timeColumn || null,
+      });
+      setInterpretation(result);
+      setInterpretedFor(inputsKey);
+    } catch (err: any) {
+      const msg = err?.message || 'Could not check the question.';
+      setFormError(msg);
+      showFlash(msg, 'error');
+    } finally {
+      setInterpreting(false);
+    }
+  };
+
   const handleCreateProject = async (launchImmediately: boolean) => {
     setFormError(null);
+    if (launchImmediately && !canConfirmRun) {
+      setFormError('Check the interpretation of your question first, and confirm it is ready.');
+      return;
+    }
     if (!selectedUpload) {
       setFormError('Upload or select a CSV dataset first.');
       return;
@@ -168,6 +224,7 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
         metric_column: metricColumn || null,
         dimension_column: dimensionColumn || null,
         time_column: timeColumn || null,
+        aggregation: aggregation || null,
       });
 
       await refreshProjects(created.project);
@@ -179,6 +236,7 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
           undefined,
           created.metric_column || undefined,
           created.dimension_column || undefined,
+          created.aggregation || undefined,
         );
         showFlash(
           `Project '${created.project}' created and Python pipeline started (${runAccepted.run_id}).`,
@@ -495,6 +553,31 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
                 </select>
               </div>
             </div>
+
+            <div>
+              <label
+                htmlFor="local-aggregation-select"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
+              >
+                Aggregation
+              </label>
+              <select
+                id="local-aggregation-select"
+                data-testid="local-aggregation-select"
+                value={aggregation}
+                onChange={(e) => setAggregation(e.target.value as Aggregation | '')}
+                disabled={!selectedUpload}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">Read it from the question</option>
+                <option value="average">Average</option>
+                <option value="sum">Total (sum)</option>
+                <option value="count">Count of records</option>
+              </select>
+              <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                Average, total and count are what the pipeline calculates. Your choice here wins over the wording of the question.
+              </p>
+            </div>
           </div>
 
           {setupAdvice && selectedUpload && (setupAdvice.metric || setupAdvice.notes.length > 0) && (
@@ -585,6 +668,43 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
             )}
           </div>
 
+          {/* How Quaero reads the question, before anything is run */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-testid="check-interpretation-btn"
+                disabled={interpreting || !selectedUpload || !question.trim()}
+                onClick={handleCheckInterpretation}
+                className="inline-flex items-center space-x-1.5 rounded-2xl border border-sky-400 bg-white px-4 py-2 text-xs font-bold text-sky-900 shadow-2xs transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-700 dark:bg-slate-800 dark:text-sky-100 dark:hover:bg-slate-700"
+              >
+                {interpreting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sliders className="h-4 w-4" />}
+                <span>Check how Quaero reads this question</span>
+              </button>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                Nothing is created or run by this check.
+              </span>
+            </div>
+            {interpretation && !interpretationCurrent && (
+              <div
+                role="status"
+                data-testid="interpretation-stale"
+                className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] font-semibold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+              >
+                You changed the question or a selection. Check again before running.
+              </div>
+            )}
+            {interpretation && interpretationCurrent && (
+              <InterpretationPanel
+                interpretation={interpretation}
+                onUseQuestion={(q) => {
+                  setQuestion(q);
+                  setInterpretation(null);
+                }}
+              />
+            )}
+          </div>
+
           {/* Supported Pipeline Data Validation Settings */}
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 text-[11px] dark:border-slate-800 dark:bg-slate-800/40">
             <div className="flex items-center space-x-1.5 font-bold text-slate-800 dark:text-slate-200">
@@ -634,7 +754,8 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
             <button
               type="button"
               data-testid="create-and-run-btn"
-              disabled={creating || !selectedUpload}
+              disabled={creating || !selectedUpload || !canConfirmRun}
+              title={canConfirmRun ? undefined : 'Check the interpretation of your question first'}
               onClick={() => handleCreateProject(true)}
               className="inline-flex items-center space-x-1.5 rounded-2xl bg-sky-600 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-400"
             >
@@ -643,7 +764,7 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
               ) : (
                 <PlayCircle className="h-4 w-4" />
               )}
-              <span>Create Project & Run Python Pipeline</span>
+              <span>Confirm interpretation, create project & run</span>
             </button>
           </div>
         </div>

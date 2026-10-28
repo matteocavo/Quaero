@@ -302,6 +302,28 @@ deterministic semantic inference to resolve:
 Use `--metric-column` or `--dimension-column` only as manual overrides when the
 question is too ambiguous for automatic inference.
 
+### How a question is read (and when it is refused)
+
+For a single dataset, Quaero reads the question with deterministic keyword rules in English and Italian
+(`kpi_engine/question_interpreter.py`) and never answers a different question than the one asked:
+
+- **Read as asked:** "total / sum" is the sum, "average" the average, "how many" a count, and "most revenue" or
+  "most streams" is the *total* of that numeric column (not a row count). Highest/lowest sets the order.
+- **Your choices win:** a metric, dimension, aggregation or time column you choose explicitly (`--metric-column` and
+  `--dimension-column`, the API fields, the wizard selectors) always overrides the wording; the aggregation
+  (`average`, `sum`, `count`) is an API and wizard choice.
+- **Shown before it runs:** the Local Operations wizard and `POST /uploads/{upload_id}/interpretation` show the
+  measure, grouping, aggregation, order, time column and filters, and whether each was chosen by you, read from the
+  question or assumed.
+- **Refused, with the reason:** median, minimum/maximum, percentage and ratio, grouping by month or year when the
+  data has no such column, period or value filters ("in 2023", "only North"), comparing two values, two measures at
+  once, why/causal questions and forecasts. They are never turned into a different calculation. Vague questions
+  ("What patterns are there?") ask for a measure and a grouping instead of picking columns by chance.
+- Identifier, constant and entirely empty columns are not used as a measure unless you choose them.
+
+Available aggregations: `average`, `sum`, `count` over one measure and one grouping. The optional LLM fallback below
+applies only to the multi-dataset path; it is not used for single-dataset questions.
+
 When deterministic inference cannot confidently resolve a metric or dimension,
 Quaero can optionally use an LLM fallback. This path is disabled by default and
 is only activated when `QUAERO_ANTHROPIC_API_KEY` is present in the environment.

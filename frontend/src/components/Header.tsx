@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Menu,
   Moon,
+  Monitor,
   Sun,
   Server,
   Layers,
@@ -14,13 +15,20 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ProjectSelect } from './ProjectSelect';
+import type { ThemePreference } from '../utils/theme';
+
+const THEME_OPTIONS: { value: ThemePreference; label: string; title: string; Icon: React.ElementType }[] = [
+  { value: 'light', label: 'Light', title: 'Light theme', Icon: Sun },
+  { value: 'system', label: 'System', title: 'System theme (follows your device)', Icon: Monitor },
+  { value: 'dark', label: 'Dark', title: 'Dark theme', Icon: Moon },
+];
 
 export const Header: React.FC = () => {
   const {
     mode,
     browserWorkspaceActive,
-    theme,
-    toggleTheme,
+    themePreference,
+    setThemePreference,
     connectionStatus,
     setIsConnectionModalOpen,
     isMobileNavOpen,
@@ -144,15 +152,34 @@ export const Header: React.FC = () => {
           <Github className="h-4 w-4" />
         </a>
 
-        {/* Theme Toggle Button */}
-        <button
-          onClick={toggleTheme}
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300 bg-slate-100 text-slate-800 shadow-2xs hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-amber-300 dark:hover:bg-slate-700"
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        {/* Theme: dark (default), light or system */}
+        <div
+          role="radiogroup"
+          aria-label="Theme"
+          className="flex h-9 items-center rounded-xl border border-slate-300 bg-slate-100 p-0.5 shadow-2xs dark:border-slate-700 dark:bg-slate-800"
         >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+          {THEME_OPTIONS.map(({ value, label, title, Icon }) => {
+            const selected = themePreference === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                aria-label={label}
+                title={title}
+                onClick={() => setThemePreference(value)}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                  selected
+                    ? 'bg-white text-sky-700 shadow-2xs dark:bg-slate-950 dark:text-sky-300'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            );
+          })}
+        </div>
       </div>
     </header>
   );

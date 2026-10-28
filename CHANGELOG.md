@@ -10,6 +10,22 @@ documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/
 Candidate for v0.8.0 - Local Operations & Web App. Not released.
 
 ### Added
+- **Transparent question interpretation** (`kpi_engine/question_interpreter.py`,
+  `POST /uploads/{upload_id}/interpretation`, interpretation panel in the Local Operations wizard): before anything
+  runs, Quaero shows how it reads the question - the measure, the grouping, the aggregation, the order, the time
+  column, the filters - and whether each part was chosen by the user, read from the question or assumed. The run
+  is only offered on an interpretation the person has seen, for exactly what is in the form. Deterministic keyword
+  rules in English and Italian; no confidence scores, no model. A question the pipeline cannot answer (median,
+  minimum/maximum, percentage, ratio, grouping by month or year when no such column exists, a period or value
+  filter, a comparison of two values, two measures at once, why/causal questions, forecasts) is **refused with the
+  reason and a suggestion** instead of being answered with something else; a vague question ("What patterns are
+  there?") asks for a measure and a grouping. Columns that are identifiers, constant or all empty are not used as
+  a measure unless chosen explicitly.
+- **Explicit aggregation** (`aggregation`: `average`, `sum` or `count`) on `POST /projects`, `POST
+  /projects/{project}/run` and the interpretation endpoint, and an aggregation selector in the wizard. It wins over
+  the wording of the question. Only the three aggregations the pipeline really calculates are accepted.
+- `interpretation` (status, selections with their origin, issues) recorded in the run results and in
+  `final_summary_report.json`, and shown above the results of a run.
 - **Local data lifecycle** (`api/services/lifecycle.py`, `GET /storage`, `POST /storage/policy`,
   `POST /storage/cleanup`, `python -m api.lifecycle_cli`, **Local Storage** screen): uploads are temporary until a
   project uses them; saved projects and the uploads they use are never deleted by the cleanup. Policies **Ask on
@@ -25,7 +41,23 @@ Candidate for v0.8.0 - Local Operations & Web App. Not released.
   builder. No AI or external service, separate from the Python pipeline. The Local Operations wizard uses the same
   rules for its default measure, grouping and time column.
 
+### Changed
+- **Dark is the default theme.** Light and System are one click away in the header. Only a choice the user makes is
+  stored (`quaero_theme_preference`); nothing is written on the first visit. The old `quaero_theme` key, which the
+  previous version wrote for every first-time visitor, is migrated: a stored `dark` becomes an explicit choice, a
+  stored `light` is dropped because it cannot be told apart from the old automatic value. The theme is applied
+  before the first paint, so there is no flash.
+- The measure and grouping of a single-dataset run are no longer guessed by word overlap: they come from the
+  interpretation above. The optional LLM fallback is not used on this path (multi-dataset projects are unchanged).
+
 ### Fixed
+- **Wrong answers to common questions**: "Which product has the *most revenue*" and "most streams" were answered
+  with a row count; "how many" was not always a count; "total" was not always a sum; an explicit measure or grouping
+  chosen in the form was overridden by the wording of the question. Each is now read as asked, and the explicit
+  choice always prevails.
+- **`GET /projects/{project}/runs/{run_id}` returned HTTP 500 intermittently on Windows**: the run file was being
+  replaced at the moment the poller had it open. Run files are now written with a unique temporary name, replaced
+  under a lock with a bounded retry on sharing violations, and read with the same retry.
 - The Local Operations wizard and the ready-made patterns chose the first numeric column as the measure even when
   it was constant (for example all zeros).
 - The Browser Workspace Overview counted an unreadable value as missing twice.

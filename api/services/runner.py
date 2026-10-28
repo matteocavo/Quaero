@@ -20,14 +20,20 @@ from __future__ import annotations
 import ipaddress
 import json
 import logging
+import os
 import socket
+import threading
+import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from api.schemas import RunStatus
+from kpi_engine.question_interpreter import QuestionInterpretationError
 
 LOGGER = logging.getLogger(__name__)
+_T = TypeVar("_T")
 
 # ---------------------------------------------------------------------------
 # SSRF protection
@@ -76,28 +82,101 @@ def _is_ssrf_risk(url: str) -> bool:
 
 
 def _runs_dir(project_root: Path) -> Path:
-    runs = project_root / "runs"
-    runs.mkdir(parents=True, exist_ok=True)
-    return runs
+    """The resolved ``<project_root>/runs`` directory, created if needed."""
+    root = os.path.realpath(project_root)
+    runs = os.path.realpath(os.path.join(root, "runs"))
+    if not runs.startswith(root + os.sep):
+        raise ValueError("Runs directory escaped project root.")
+    os.makedirs(runs, exist_ok=True)
+    return Path(runs)
+
+
+def _inside_runs_dir(project_root: Path, path: Path) -> Path:
+    """*path* resolved, and only if it lies inside the runs directory (checked right before any I/O)."""
+    runs = os.path.realpath(_runs_dir(project_root))
+    target = os.path.realpath(path)
+    if not target.startswith(runs + os.sep):
+        raise ValueError(f"not a run file: {path.name}")
+    return Path(target)
 
 
 def _run_path(project_root: Path, run_id: str) -> Path:
-    return _runs_dir(project_root) / f"{run_id}.json"
+    """The run file for *run_id*. Run ids are server-generated UUIDs; anything else is not a run and never
+    becomes part of a path."""
+    return _inside_runs_dir(
+        project_root, _runs_dir(project_root) / f"{uuid.UUID(str(run_id))}.json"
+    )
+
+
+#: On Windows a run file can be refused for a few milliseconds while another thread has it open (a poller
+#: reading it, the runner replacing it). That is a temporary sharing conflict: retry with a short, growing pause
+#: (about half a second in all), then let the error through. A refusal that lasts is a real problem and must
+#: surface, not be retried forever.
+_IO_ATTEMPTS = 12
+_IO_BACKOFF_STEP_SECONDS = 0.01
+_IO_BACKOFF_MAX_SECONDS = 0.05
+
+
+def _retry_sharing_conflicts(operation: Callable[[], _T]) -> _T:
+    for attempt in range(1, _IO_ATTEMPTS + 1):
+        try:
+            return operation()
+        except PermissionError:
+            if attempt == _IO_ATTEMPTS:
+                raise
+            time.sleep(min(_IO_BACKOFF_STEP_SECONDS * attempt, _IO_BACKOFF_MAX_SECONDS))
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+#: Readers and the writer of this process take turns on run files, so they never meet. The retry above is for
+#: whatever the lock cannot see: another process, an antivirus scan, a cloud-sync client.
+_RUN_FILE_LOCK = threading.Lock()
+
+
+def _read_run_file(project_root: Path, path: Path) -> dict[str, Any]:
+    target = _inside_runs_dir(project_root, path)
+
+    def read() -> dict[str, Any]:
+        with _RUN_FILE_LOCK, target.open(encoding="utf-8") as fh:
+            return json.load(fh)
+
+    return _retry_sharing_conflicts(read)
+
+
+def _existing_run_file(project_root: Path, run_id: str) -> Path | None:
+    """The run file whose name is *run_id*, taken from the directory listing: the id is compared with the names
+    that exist, never joined into a path, so a request value cannot reach the filesystem."""
+    for candidate in _runs_dir(project_root).glob("*.json"):
+        if candidate.stem == run_id:
+            return candidate
+    return None
 
 
 def _load_run(project_root: Path, run_id: str) -> dict[str, Any] | None:
-    path = _run_path(project_root, run_id)
-    if not path.is_file():
+    path = _existing_run_file(project_root, run_id)
+    if path is None:
         return None
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
+    try:
+        return _read_run_file(project_root, path)
+    except FileNotFoundError:
+        return None
 
 
 def _save_run(project_root: Path, state: dict[str, Any]) -> None:
-    path = _run_path(project_root, state["run_id"])
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    """Write the state atomically: a complete file under a unique name, then one replace."""
+    path = _inside_runs_dir(project_root, _run_path(project_root, state["run_id"]))
+    tmp = _inside_runs_dir(project_root, path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp"))
+
+    def replace() -> None:
+        with _RUN_FILE_LOCK:
+            tmp.replace(path)
+
+    try:
+        tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        _retry_sharing_conflicts(replace)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _active_run_for_project(project_root: Path, project: str) -> dict[str, Any] | None:
@@ -105,8 +184,7 @@ def _active_run_for_project(project_root: Path, project: str) -> dict[str, Any] 
     runs_dir = _runs_dir(project_root)
     for run_file in runs_dir.glob("*.json"):
         try:
-            with run_file.open(encoding="utf-8") as fh:
-                state = json.load(fh)
+            state = _read_run_file(project_root, run_file)
             if state.get("project") == project and state.get("status") in (
                 RunStatus.QUEUED,
                 RunStatus.RUNNING,
@@ -253,6 +331,7 @@ def execute_run(
     source_url: str | None,
     metric_column: str | None = None,
     dimension_column: str | None = None,
+    aggregation: str | None = None,
 ) -> None:
     """Execute the pipeline synchronously (called inside a BackgroundTask).
 
@@ -303,6 +382,9 @@ def execute_run(
                             else:
                                 ds0.pop("dimension_column", None)
                             updated = True
+                        if aggregation is not None:
+                            ds0["aggregation"] = aggregation
+                            updated = True
                     if updated:
                         original_config_text = raw_config_text
                         restore_after_run = "upload_id" not in parsed_config
@@ -334,6 +416,9 @@ def execute_run(
                 source_path=source_url,
                 source_name=project,
                 question=question,
+                metric_column=(metric_column or "").strip() or None,
+                dimension_column=(dimension_column or "").strip() or None,
+                aggregation=aggregation,
                 project_root=project_root,
             )
         else:
@@ -346,6 +431,13 @@ def execute_run(
         state["result_keys"] = result_keys
         _db_transition(run_id, "COMPLETED")
         _db_register_marts(project_root, project, result)
+
+    except QuestionInterpretationError as exc:
+        # An expected outcome, not a crash: the question cannot be answered as asked. The message says why.
+        LOGGER.info("Run %s refused the question: %s", run_id, exc)
+        state["status"] = RunStatus.FAILED
+        state["error"] = str(exc)
+        _db_transition(run_id, "FAILED", error=str(exc))
 
     except Exception as exc:
         LOGGER.exception("Run %s failed: %s", run_id, exc)

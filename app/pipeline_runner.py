@@ -14,14 +14,12 @@ import pandas as pd
 from kpi_engine.analytics_metadata import build_analytics_metadata
 from kpi_engine.anomaly_detection import detect_anomalies
 from kpi_engine.metric_inference import (
-    infer_aggregation_intent,
-    infer_dimension_column,
-    infer_metric_column,
     score_dimension_candidates,
     score_metric_candidates,
 )
 from kpi_engine.metrics_definitions import write_metrics_definitions
 from kpi_engine.metrics_yaml import write_metrics_yaml
+from kpi_engine.question_interpreter import QuestionInterpretationError, interpret_question
 from kpi_engine.semantic_contract import infer_metric_unit
 from kpi_engine.suggest_kpis import suggest_kpis
 from pipelines.anomaly_framing import frame_anomalies
@@ -267,18 +265,20 @@ def run_project_from_config(
         primary_dataset = prepared_datasets[0]
         dataset_config = primary_dataset["config"]
         cleaned_dataframe = primary_dataset["cleaning_result"]["dataframe"]
-        query_selection = _resolve_query_selection(
-            dataframe=cleaned_dataframe,
-            question=question,
-            metric_column=dataset_config.get("metric_column"),
-            dimension_column=dataset_config.get("dimension_column"),
-        )
-        resolved_metric_column = query_selection["metric"]["metric_column"]
         configured_time_col = (
             normalize_name(str(dataset_config["time_column"]))
             if dataset_config.get("time_column")
             else None
         )
+        query_selection = _resolve_query_selection(
+            dataframe=cleaned_dataframe,
+            question=question,
+            metric_column=dataset_config.get("metric_column"),
+            dimension_column=dataset_config.get("dimension_column"),
+            aggregation=dataset_config.get("aggregation"),
+            time_column=configured_time_col,
+        )
+        resolved_metric_column = query_selection["metric"]["metric_column"]
         mart_build = _build_available_marts(
             dataframe=cleaned_dataframe,
             metric_column=resolved_metric_column,
@@ -392,6 +392,7 @@ def run_project_from_config(
             "metric_selection": query_selection["metric"],
             "dimension_selection": query_selection["dimension"],
             "aggregation_intent": query_selection["aggregation"],
+            "interpretation": query_selection["interpretation"],
             "kpi_suggestions": kpi_result,
             "anomaly_detection": anomaly_result["report"],
             "anomaly_detection_path": _prefixed_path(project_prefix, anomaly_result["report_path"]),
@@ -452,6 +453,7 @@ def run_pipeline(
     provider_column: str = "provider",
     release_year_column: str = "release_year",
     project_root: str | Path | None = None,
+    aggregation: str | None = None,
 ) -> dict[str, Any]:
     """Run the current pipeline sequentially with simple configurable defaults."""
     repo_root = resolve_project_root(project_root, __file__)
@@ -482,6 +484,7 @@ def run_pipeline(
         question=question,
         metric_column=metric_column,
         dimension_column=dimension_column,
+        aggregation=aggregation,
     )
     resolved_metric_column = query_selection["metric"]["metric_column"]
 
@@ -585,6 +588,7 @@ def run_pipeline(
         "metric_selection": query_selection["metric"],
         "dimension_selection": query_selection["dimension"],
         "aggregation_intent": query_selection["aggregation"],
+        "interpretation": query_selection["interpretation"],
         "kpi_suggestions": kpi_result,
         "anomaly_detection": anomaly_result["report"],
         "anomaly_detection_path": _prefixed_path(project_prefix, anomaly_result["report_path"]),
@@ -791,80 +795,68 @@ def _resolve_query_selection(
     question: str,
     metric_column: str | None,
     dimension_column: str | None,
+    aggregation: str | None = None,
+    time_column: str | None = None,
 ) -> dict[str, Any]:
-    """Resolve metric, dimension, and aggregation intent for the question."""
-    metric_candidates = score_metric_candidates(question=question, dataframe=dataframe)
-    metric_error: str | None = None
+    """Resolve metric, dimension and aggregation for the question, or refuse it.
 
-    if metric_column is not None:
-        if metric_column not in dataframe.columns:
-            raise ValueError(f"Metric column not found in dataset: {metric_column}")
-        metric_selection: dict[str, Any] | None = {
-            "metric_column": metric_column,
-            "selection_mode": "user_provided",
-            "candidates": [{"column": metric_column, "score": None}],
-        }
-    else:
-        try:
-            metric_selection = infer_metric_column(question=question, dataframe=dataframe)
-        except ValueError as error:
-            metric_error = str(error)
-            metric_selection = None
+    The question is read by ``kpi_engine.question_interpreter``. A question that the pipeline cannot answer as
+    asked (an unsupported request, or too vague to answer without guessing) raises
+    ``QuestionInterpretationError`` with the reason; it is never answered with a different analysis. Explicit
+    ``metric_column``, ``dimension_column`` and ``aggregation`` always win over the wording.
+    """
+    if metric_column is not None and metric_column not in dataframe.columns:
+        raise ValueError(f"Metric column not found in dataset: {metric_column}")
+    if dimension_column is not None and dimension_column not in dataframe.columns:
+        raise ValueError(f"Dimension column not found in dataset: {dimension_column}")
 
-    resolved_metric_column = (
-        metric_selection["metric_column"] if metric_selection is not None else None
+    interpretation = interpret_question(
+        question,
+        dataframe,
+        metric_column=metric_column,
+        dimension_column=dimension_column,
+        aggregation=aggregation,
+        time_column=time_column,
     )
-    dimension_candidates = score_dimension_candidates(
-        question=question,
-        dataframe=dataframe,
-        metric_column=resolved_metric_column,
-    )
-    dimension_error: str | None = None
+    if interpretation["status"] != "ready":
+        raise QuestionInterpretationError(interpretation)
 
-    if dimension_column is not None:
-        if dimension_column not in dataframe.columns:
-            raise ValueError(f"Dimension column not found in dataset: {dimension_column}")
-        dimension_selection: dict[str, Any] | None = {
-            "dimension_column": dimension_column,
-            "selection_mode": "user_provided",
-            "candidates": [{"column": dimension_column, "score": None}],
-        }
+    resolved_metric = interpretation["metric"]["column"]
+    resolved_dimension = interpretation["dimension"]["column"]
+    if resolved_metric == "record_count":
+        metric_candidates = [
+            {"column": "record_count", "score": ("count", "question_intent", None)}
+        ]
+    elif interpretation["metric"]["origin"] == "user_provided":
+        metric_candidates = [{"column": resolved_metric, "score": None}]
     else:
-        try:
-            dimension_selection = infer_dimension_column(
-                question=question,
-                dataframe=dataframe,
-                metric_column=resolved_metric_column,
-            )
-        except ValueError as error:
-            dimension_error = str(error)
-            dimension_selection = None
-
-    if metric_error or dimension_error:
-        raise ValueError(
-            "Could not confidently infer the analytical grouping from the "
-            f"question. {_combine_error_messages(metric_error, dimension_error)} "
-            f"Top candidate metric columns: {_candidate_columns(metric_candidates)}. "
-            "Top candidate dimension columns: "
-            f"{_candidate_columns(dimension_candidates)}. "
-            "Provide --metric-column and/or --dimension-column manually."
+        metric_candidates = score_metric_candidates(question=question, dataframe=dataframe)
+    if interpretation["dimension"]["origin"] == "user_provided":
+        dimension_candidates = [{"column": resolved_dimension, "score": None}]
+    else:
+        dimension_candidates = score_dimension_candidates(
+            question=question,
+            dataframe=dataframe,
+            metric_column=None if resolved_metric == "record_count" else resolved_metric,
         )
 
-    aggregation_intent = infer_aggregation_intent(question)
-
-    if (
-        metric_column is None
-        and metric_selection is not None
-        and metric_selection["metric_column"] != "record_count"
-    ):
-        metric_selection["candidates"] = metric_candidates
-    if dimension_column is None and dimension_selection is not None:
-        dimension_selection["candidates"] = dimension_candidates
-
     return {
-        "metric": metric_selection,
-        "dimension": dimension_selection,
-        "aggregation": aggregation_intent,
+        "metric": {
+            "metric_column": resolved_metric,
+            "selection_mode": interpretation["metric"]["origin"],
+            "candidates": metric_candidates,
+        },
+        "dimension": {
+            "dimension_column": resolved_dimension,
+            "selection_mode": interpretation["dimension"]["origin"],
+            "candidates": dimension_candidates,
+        },
+        "aggregation": {
+            "aggregation": interpretation["aggregation"]["value"],
+            "ordering": interpretation["ordering"]["value"],
+            "selection_mode": interpretation["aggregation"]["origin"],
+        },
+        "interpretation": interpretation,
     }
 
 
@@ -923,6 +915,7 @@ def _write_final_summary_report(
             "ordering": results["aggregation_intent"]["ordering"],
         },
         "aggregation_selection_mode": results["aggregation_intent"]["selection_mode"],
+        "interpretation": results.get("interpretation"),
         "profile_path": results["profiling"]["output_path"],
         "cleaned_data_path": results["cleaning"]["output_path"],
         "cleaning_metadata_path": results["cleaning"]["metadata_path"],
@@ -2176,6 +2169,7 @@ def _write_config_project_final_summary_report(
                     "ordering": results["aggregation_intent"]["ordering"],
                 },
                 "aggregation_selection_mode": results["aggregation_intent"]["selection_mode"],
+                "interpretation": results.get("interpretation"),
                 "primary_kpi": results["kpi_suggestions"]["primary_kpi"],
                 "anomaly_report_v2_path": results["anomaly_framing_v2"]["output_path"],
                 "lineage_html_path": results["lineage_html"]["output_path"],

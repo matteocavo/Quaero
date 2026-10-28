@@ -12,6 +12,15 @@ import { AnalysisError, runAnalysis, specToSentence, validateSpec } from '../ana
 import type { AnalysisResult, AnalysisSpec, Dataset, DatasetOrigin } from '../analysis/types';
 import { LOCAL_UNAVAILABLE_MESSAGE, localOperationsAvailable } from '../utils/runtime';
 import {
+  DARK_QUERY,
+  migrateLegacyTheme,
+  readThemePreference,
+  resolveTheme,
+  saveThemePreference,
+  systemPrefersDark,
+  type ThemePreference,
+} from '../utils/theme';
+import {
   DatasetProfile,
   parseCSV,
   SAMPLE_RELEASE_IMPACT_CSV,
@@ -37,8 +46,11 @@ interface AppContextType {
   projects: ProjectSummary[];
   currentOverview: ProjectOverviewResponse | null;
   loadingOverview: boolean;
+  /** The theme in use now ('system' already resolved to the device's choice). */
   theme: 'light' | 'dark';
-  toggleTheme: () => void;
+  /** What the user picked: dark (the default), light or system. */
+  themePreference: ThemePreference;
+  setThemePreference: (preference: ThemePreference) => void;
   apiClient: QuaeroApiClient;
   connectionStatus: 'connected' | 'checking' | 'disconnected' | 'demo';
   isConnectionModalOpen: boolean;
@@ -96,26 +108,31 @@ const EMPTY_SPEC: AnalysisSpec = { filters: [], dimensions: [], measures: [{ fn:
 const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Theme state - Light by default, with dark mode toggleable
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('quaero_theme');
-      if (saved === 'dark') return 'dark';
-    }
-    return 'light'; // Default to light mode
-  });
+  // Theme: Dark by default. Only an explicit choice is stored (see utils/theme.ts).
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>(() => readThemePreference());
+  const [systemDark, setSystemDark] = useState<boolean>(() => systemPrefersDark());
+  const theme = resolveTheme(themePreference, systemDark);
 
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('quaero_theme', theme);
+    migrateLegacyTheme();
+  }, []);
+
+  useEffect(() => {
+    if (themePreference !== 'system' || typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia(DARK_QUERY);
+    const follow = () => setSystemDark(query.matches);
+    follow();
+    query.addEventListener('change', follow);
+    return () => query.removeEventListener('change', follow);
+  }, [themePreference]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  const setThemePreference = useCallback((preference: ThemePreference) => {
+    setThemePreferenceState(preference);
+    saveThemePreference(preference);
   }, []);
 
   const localAvailable = useMemo(() => localOperationsAvailable(), []);
@@ -450,7 +467,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     currentOverview: browserWorkspaceActive ? null : currentOverview,
     loadingOverview,
     theme,
-    toggleTheme,
+    themePreference,
+    setThemePreference,
     apiClient,
     connectionStatus,
     isConnectionModalOpen,

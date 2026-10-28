@@ -91,13 +91,15 @@ describe('Public Demo is the default and is fully offline', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('persists only the theme in localStorage', async () => {
+  it('starts in Dark, stores nothing until the user chooses, and then stores only the theme', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByTitle(/Switch to dark mode/));
-    expect(window.localStorage.getItem('quaero_theme')).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
-    expect(Object.keys(window.localStorage)).toEqual(['quaero_theme']);
+    expect(Object.keys(window.localStorage)).toEqual([]); // opening the app is not a choice
+    await user.click(await screen.findByRole('radio', { name: 'Light' }));
+    expect(window.localStorage.getItem('quaero_theme_preference')).toBe('light');
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(Object.keys(window.localStorage)).toEqual(['quaero_theme_preference']);
   });
 });
 
