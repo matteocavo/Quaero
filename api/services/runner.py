@@ -21,14 +21,18 @@ import ipaddress
 import json
 import logging
 import socket
+import threading
+import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from api.schemas import RunStatus
 from kpi_engine.question_interpreter import QuestionInterpretationError
 
 LOGGER = logging.getLogger(__name__)
+_T = TypeVar("_T")
 
 # ---------------------------------------------------------------------------
 # SSRF protection
@@ -86,19 +90,62 @@ def _run_path(project_root: Path, run_id: str) -> Path:
     return _runs_dir(project_root) / f"{run_id}.json"
 
 
+#: On Windows a run file can be refused for a few milliseconds while another thread has it open (a poller
+#: reading it, the runner replacing it). That is a temporary sharing conflict: retry with a short, growing pause
+#: (about half a second in all), then let the error through. A refusal that lasts is a real problem and must
+#: surface, not be retried forever.
+_IO_ATTEMPTS = 12
+_IO_BACKOFF_STEP_SECONDS = 0.01
+_IO_BACKOFF_MAX_SECONDS = 0.05
+
+
+def _retry_sharing_conflicts(operation: Callable[[], _T]) -> _T:
+    for attempt in range(1, _IO_ATTEMPTS + 1):
+        try:
+            return operation()
+        except PermissionError:
+            if attempt == _IO_ATTEMPTS:
+                raise
+            time.sleep(min(_IO_BACKOFF_STEP_SECONDS * attempt, _IO_BACKOFF_MAX_SECONDS))
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+#: Readers and the writer of this process take turns on run files, so they never meet. The retry above is for
+#: whatever the lock cannot see: another process, an antivirus scan, a cloud-sync client.
+_RUN_FILE_LOCK = threading.Lock()
+
+
+def _read_run_file(path: Path) -> dict[str, Any]:
+    def read() -> dict[str, Any]:
+        with _RUN_FILE_LOCK, path.open(encoding="utf-8") as fh:
+            return json.load(fh)
+
+    return _retry_sharing_conflicts(read)
+
+
 def _load_run(project_root: Path, run_id: str) -> dict[str, Any] | None:
     path = _run_path(project_root, run_id)
-    if not path.is_file():
+    try:
+        return _read_run_file(path)
+    except FileNotFoundError:
         return None
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
 
 
 def _save_run(project_root: Path, state: dict[str, Any]) -> None:
+    """Write the state atomically: a complete file under a unique name, then one replace."""
     path = _run_path(project_root, state["run_id"])
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+
+    def replace() -> None:
+        with _RUN_FILE_LOCK:
+            tmp.replace(path)
+
+    try:
+        tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        _retry_sharing_conflicts(replace)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _active_run_for_project(project_root: Path, project: str) -> dict[str, Any] | None:
@@ -106,8 +153,7 @@ def _active_run_for_project(project_root: Path, project: str) -> dict[str, Any] 
     runs_dir = _runs_dir(project_root)
     for run_file in runs_dir.glob("*.json"):
         try:
-            with run_file.open(encoding="utf-8") as fh:
-                state = json.load(fh)
+            state = _read_run_file(run_file)
             if state.get("project") == project and state.get("status") in (
                 RunStatus.QUEUED,
                 RunStatus.RUNNING,
