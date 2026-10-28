@@ -558,6 +558,15 @@ cd frontend && npm ci && npm run dev                  # terminal 2 -> http://127
 
 Once `http://127.0.0.1:3000` opens, click the mode button in the top header, select **Local Operations**, and open **Import & Profile Data** (or **Pipeline Operations**) to run the `Import → Configure → Run → Results` workflow.
 
+### Local Storage: temporary uploads, saved projects and cleanup
+
+In Local Operations mode the **Local Storage** screen shows the space used by temporary uploads, uploads that a
+project keeps, project settings and generated files. Uploads are **temporary** until a project uses them; an
+upload used by a project is never deleted by the cleanup. Choose what happens when Quaero closes: **Ask on exit**
+(default), **Auto cleanup** (this session's temporary uploads only) or **Keep files**. After a crash the
+leftovers of the earlier session are listed, never deleted automatically. Every permanent deletion asks for
+explicit confirmation and lists exactly what will go. Details and rules: `api/README.md`.
+
 ### Where uploaded files are stored & how to remove local project data
 
 - **Uploaded CSV files**: stored in `<repo_root>/uploads/upload_<12hex>.csv` with schema metadata in `<repo_root>/uploads/upload_<12hex>.json`. The original filename is never used as a filesystem path, and `uploads/` is untracked (`.gitignore`) and never publicly served.

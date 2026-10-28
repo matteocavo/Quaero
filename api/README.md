@@ -396,6 +396,56 @@ runs/
 
 ---
 
+### Data lifecycle: `GET /storage`, `POST /storage/policy`, `POST /storage/cleanup`
+
+Three kinds of local data are told apart:
+
+| Kind | What it is | Removed by the lifecycle? |
+|---|---|---|
+| **Temporary upload** | `uploads/upload_<12hex>.csv` + `.json` that no project uses. Each records the `session_id` of the server that created it. | Yes, with confirmation |
+| **Saved upload** | An upload that a project's `project_config.json` refers to (by `upload_id` or by dataset path). Computed from the configs every time, never from a stored flag. | **Never** |
+| **Project / generated artifacts** | `projects/<name>/`. Projects created from an upload can have their *generated files* cleared (`raw/`, `staging/`, `integrated/`, `marts/`, `metadata/`, `ui_inputs/`); `project_config.json` stays. Projects not created from an upload (the bundled demos, hand-written configs) are protected. | Generated files only, with confirmation |
+
+`GET /storage` returns the space used per category, the session id, the policy and the lists of uploads
+(`state`: `current_session`, `orphaned` for an earlier session or an unknown owner, or `saved`) and projects.
+
+`POST /storage/policy` with `{"lifecycle_policy": "ask_on_exit" | "auto_cleanup" | "keep_files"}` (default
+`ask_on_exit`) chooses what the launcher does at exit. It is a POST, not a PUT, so the dev proxy keeps allowing
+only GET and POST.
+
+`POST /storage/cleanup` with `{"scope", "confirm", "target_id"}`:
+
+| `scope` | `target_id` | Deletes |
+|---|---|---|
+| `current_session` | none | this server session's temporary uploads |
+| `orphaned` | none | temporary uploads left by an earlier session or without a recorded owner |
+| `single_upload` | `upload_<12hex>` | one temporary upload (`409` if a project uses it) |
+| `project_artifacts` | a project name | generated files of an upload-created project (`409` if preexisting or a run is in progress) |
+
+Rules enforced by the server (tests in `tests/test_lifecycle.py`):
+
+- `confirm` must be `true`; otherwise `422` and nothing is deleted.
+- The client never sends a path or a file name: only a scope, an id matching `^upload_[0-9a-f]{12}$`, or the
+  name of a project that already exists. Anything else is `404`/`422` and touches nothing.
+- Only regular files named exactly `upload_<12hex>.csv|json` directly inside `uploads/` are removed. Symbolic
+  links, Windows junctions, directories and every other file name are left alone; an upload that has such a file
+  is skipped whole. A linked `uploads/` folder is refused.
+- "This session" is decided by the server from the `session_id` stored in the upload metadata (the launcher sets
+  `QUAERO_SESSION_ID`). A restart after a crash therefore sees the old files as `orphaned` and never deletes them
+  by itself.
+- Whether an upload is still used is checked again immediately before each deletion, under the lock that
+  project creation also takes.
+- A file that cannot be deleted (open in another program on Windows) is reported in `skipped` with its reason;
+  the rest continues. The CSV goes first and the metadata (which records the owner) last, and the metadata is
+  kept if the CSV could not be deleted, so a leftover is still recognised next time.
+
+**At exit.** `scripts/start-local.ps1` sets a session id, runs `python -m api.lifecycle_cli report` at start (it
+prints any orphaned uploads) and `python -m api.lifecycle_cli exit` after stopping the server, which applies the
+policy: `ask_on_exit` lists this session's temporary uploads and asks (with no terminal to ask it keeps them),
+`auto_cleanup` deletes them, `keep_files` keeps them. Closing the console window with the X may not run the exit
+step; nothing is lost, the files are listed at the next start and in the **Local Storage** screen. If you start
+`uvicorn` yourself, no exit step runs.
+
 ## Local storage & removing local data
 
 | Path under `<QUAERO_PROJECT_ROOT>` | Contents | Git status |

@@ -79,6 +79,16 @@ In **Local Operations** mode, opening **Import & Profile Data** (or clicking **+
 4. **Results (Explore & Download)**:
    - Inspect generated marts in **Mart Explorer** (and export CSV pages), review per-column DQ scores and framed anomalies in **Quality & Anomalies**, inspect the DAG in **Data Lineage DAG**, and download `final_summary_report.json` directly from **Pipeline Operations**.
 
+### Local Storage screen
+
+Local Operations adds **Local Storage** to the menu (it does not exist in the Public Demo, which stores nothing).
+It shows the space used per category, the cleanup policy (**Ask on exit** by default, **Auto cleanup**, **Keep
+files**), the temporary uploads with their origin (this session or an earlier one), and the saved projects, whose
+uploads are marked as kept and cannot be deleted. When Local Operations connects after a crash, a notice says how
+many temporary uploads of an earlier session are still on disk; they are only deleted if you review and confirm.
+Every permanent deletion goes through a dialog that lists what will be removed; the browser sends only a scope and
+an id, never a path. The policy applies when Quaero is started with `scripts/start-local.ps1`.
+
 ### Where uploaded files and local projects are stored & how to remove them
 
 All local operations data stays on your machine inside untracked directories:
@@ -186,6 +196,33 @@ Rules it follows:
 - It invents nothing: no KPI, run, mart or lineage exists for it. The demo projects and every existing screen
   are unchanged when it is not selected.
 
+## Suggested analyses
+
+In **Analyze Dataset -> Build Analysis** (and the first screen after loading) Quaero proposes analyses for the
+loaded data. They come from fixed rules, in the browser, on your rows: **no AI, no external service, and not the
+Python pipeline**. The same data always gives the same suggestions, and each one shows *why* (facts from your
+columns), *what is calculated* (the exact sentence the query builder will run) and its *limits* (with real counts
+of rows left out). One click fills the query builder, keeps your current filters, runs it and opens the results.
+
+| Rule | Value (`ADVISOR_RULES` in `src/analysis/advisor.ts`) |
+|---|---|
+| Column with no value / one value only | not used; the value is named ("Every value is 0") |
+| Column mostly missing | 50% or more of the rows; not used |
+| Text column almost constant | one value is 95% or more of at least 20 rows; not used |
+| Key | numeric, name like `id`/`*_id`/`*_key`/`*_code`, every value different; not used |
+| Text column as a *label* | a different value in every row, or more than 30 distinct values: names a ranking |
+| Text column as a *grouping* | 2 to 30 distinct values |
+| Measure / time | a numeric column that passed the above / a date column (year, month or day by its span) |
+| Unusual values | the same 1.5 x IQR rule as the Data Quality profile, so the counts agree |
+| Size | up to 3 numeric columns in file order, at most 8 suggestions; the rest is counted, not hidden |
+
+Suggestions per measure: *over time* (sum per year/month/day), *top 10 by label*, *by category* (sum and average),
+*distribution* (10 equal-width ranges) and *unusual values* (the thresholds are shown). Without a numeric column
+it offers row counts. No score, probability or relationship between columns is ever shown. The Data Quality tab
+lists the columns that were left out and why. In Local Operations, the same rules choose the default measure,
+grouping and time column of the pipeline wizard (not the first numeric column, which may be all zeros) and say
+which columns were set aside; the Python pipeline then runs as before with the columns you confirm.
+
 ## Tests
 
 ```bash
@@ -198,7 +235,9 @@ npm run test:e2e         # real Chrome against that build: assets, console, ever
                          # needs Chrome installed
 npm run test:e2e:local   # full-stack E2E in real Chrome against a live FastAPI + Vite dev proxy in an
                          # isolated temp workspace: uploads an external CSV, creates a project, runs the
-                         # Python pipeline, inspects marts/DQ/anomalies/lineage, and downloads exports
+                         # Python pipeline, inspects marts/DQ/anomalies/lineage, and downloads exports;
+                         # and the data lifecycle with real files, a killed API process (a crash), a restart
+                         # under a new session, and the exit cleanup for each policy
 npm test                 # proxy policy, API client, CSV profiler and reader/writer, the analysis engine
                          # (filters, aggregations, nulls, limits, exports), the Local Operations wizard,
                          # the upload -> analyze -> export UI workflow with fetch forbidden, and a real

@@ -10,6 +10,29 @@ documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/
 Candidate for v0.8.0 - Local Operations & Web App. Not released.
 
 ### Added
+- **Local data lifecycle** (`api/services/lifecycle.py`, `GET /storage`, `POST /storage/policy`,
+  `POST /storage/cleanup`, `python -m api.lifecycle_cli`, **Local Storage** screen): uploads are temporary until a
+  project uses them; saved projects and the uploads they use are never deleted by the cleanup. Policies **Ask on
+  exit** (default), **Auto cleanup** (this session's temporary uploads only) and **Keep files**. Every deletion
+  needs `confirm=true` and a confirmation dialog; the client sends a scope and an id, never a path. Symlinks and
+  Windows junctions are not followed, only `upload_<12hex>.csv|json` regular files are deleted, files in use or a
+  failed second file are reported, and use by a project is re-checked right before deleting. After a crash the
+  leftovers of the earlier session are listed (launcher message, Local Storage screen) and kept until the user
+  confirms. `scripts/start-local.ps1` sets a session id and applies the policy at exit.
+- **Suggested analyses** (`frontend/src/analysis/advisor.ts`): deterministic, in-browser rules that find the
+  measure, label, grouping and time columns, flag constant, nearly constant, mostly empty and key-like columns, and
+  propose analyses with the reason, the exact calculation and the limits; applying one fills the existing query
+  builder. No AI or external service, separate from the Python pipeline. The Local Operations wizard uses the same
+  rules for its default measure, grouping and time column.
+
+### Fixed
+- The Local Operations wizard and the ready-made patterns chose the first numeric column as the measure even when
+  it was constant (for example all zeros).
+- The Browser Workspace Overview counted an unreadable value as missing twice.
+- The proxy key-leak test and the UI workflow tests no longer fail intermittently on a busy machine (longer
+  Testing Library and test timeouts).
+
+### Added (Local Operations workflow)
 - **Local Operations CSV-to-Pipeline workflow (`v0.8.0`)**: end-to-end local workflow in the React web
   app (`Import → Configure → Run → Results`) connected to the FastAPI backend and Python pipeline:
   - **CSV Upload API** (`POST /uploads`, `GET /uploads`, `GET /uploads/{upload_id}`): API-key
