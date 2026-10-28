@@ -7,35 +7,62 @@ documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/
 
 ## [Unreleased]
 
-Candidate for v0.7.0 - React web app. Not released.
+Candidate for v0.8.0 - Local Operations & Web App. Not released.
 
 ### Added
+- **Local Operations CSV-to-Pipeline workflow (`v0.8.0`)**: end-to-end local workflow in the React web
+  app (`Import → Configure → Run → Results`) connected to the FastAPI backend and Python pipeline:
+  - **CSV Upload API** (`POST /uploads`, `GET /uploads`, `GET /uploads/{upload_id}`): API-key
+    authenticated local CSV upload with filename/extension/MIME validation, configurable byte cap
+    (`QUAERO_MAX_UPLOAD_BYTES`, default 10 MiB, max 50 MiB), strict RFC 4180 CSV content validation
+    (rejects empty, binary, disguised HTML/XML/JSON, header-only, ragged rows, duplicate/blank headers),
+    random server-side `upload_<12hex>` identifiers, and storage isolated inside an untracked local
+    `uploads/` directory (never publicly served and never trusting client filenames for filesystem paths).
+  - **Project Creation API** (`POST /projects`): creates a config-backed project under
+    `projects/<project>/project_config.json` from an uploaded `upload_id`, with analytical question,
+    optional metric/dimension/time column selection (validated against the uploaded CSV schema) and
+    `409 Conflict` protection so existing projects are never overwritten.
+  - **Config-driven single-dataset pipeline parity** (`app/pipeline_runner.py`): config-backed
+    single-dataset projects now resolve repo-relative `uploads/<upload_id>.csv` paths, support optional
+    `time_column` inference, and generate full Data Quality (`dq_score_*.json`), Anomaly Framing v2
+    (`anomaly_report_v2_*.json`), Lineage (`lineage.json`, `lineage.html`), SQL exports, Power BI schema
+    and `metrics.yml` artifacts matching direct `run_pipeline()` runs.
+  - **Local Operations React wizard** (`frontend/src/components/LocalPipelineWizard.tsx`): available in
+    Local Operations mode only (`Import & Profile Data` and `Pipeline Operations`), guiding users from
+    CSV upload to project creation, pipeline execution, status polling, mart/DQ/anomaly/lineage
+    inspection, and JSON/CSV artifact downloads while keeping Public Demo mode 100% browser-only.
+  - **Windows local launcher** (`scripts/start-local.ps1`, `npm --prefix frontend run start:local`):
+    starts FastAPI and the Vite dev proxy on `127.0.0.1` only, generates an ephemeral session key when
+    `QUAERO_API_KEY` is not set, verifies `/health` and proxy readiness, and cleans up child processes on
+    exit.
 - **Browser Workspace**: a CSV loaded in the browser becomes a temporary context in the global selector,
   separate from the demo projects. The Overview Dashboard and Project Explorer describe it with real
   statistics, schema, quality, filters and the analyses created; Analyze Dataset shares the same state.
   Mart, lineage and pipeline screens say they are unavailable for it instead of showing demo data. It is
   kept in the memory of the tab only (nothing is stored or uploaded; a reload removes it).
-- **CSV analysis workspace** in the web app: after importing a CSV, *Analyze This Dataset* opens a
-  browser-only workspace (preview, data quality, filters, a visual query builder with group-by and
-  count/sum/average/min/max, charts, and CSV/JSON exports). It runs on the uploaded rows only, with file
-  and row limits and clear messages, makes no network requests, and is not the Python pipeline. The path
-  CSV upload -> FastAPI -> pipeline is documented as a known gap and not implemented.
+- **CSV analysis workspace** in the web app: after importing a CSV in Public Demo mode (or choosing the
+  in-browser tab in Local Operations), *Analyze This Dataset* opens a browser-only workspace (preview,
+  data quality, filters, a visual query builder with group-by and count/sum/average/min/max, charts, and
+  CSV/JSON exports). It runs on the in-memory rows only, with file and row limits and clear messages, and
+  makes no network requests.
 - **Web app** (`frontend/`, React 19 + TypeScript + Vite + Tailwind): Get Started workflow, in-browser
   CSV import and profiler, overview dashboard, project explorer, pipeline operations, mart explorer,
   quality and anomalies, and a lineage DAG. **Public Demo** (bundled fixtures, no network requests) is
   the default mode; **Local Operations** talks to the Quaero API through a same-origin dev proxy.
 - Dev/preview proxy hardening (`frontend/src/proxyPolicy.ts`): the API key is read from the server's
-  `QUAERO_API_KEY` only and added server-side, browser-supplied credentials are dropped, only the 12
-  endpoints the app uses are forwarded (fixed methods, size limits), and the server listens on
-  `127.0.0.1`.
+  `QUAERO_API_KEY` only and added server-side, browser-supplied credentials are dropped, only the 16
+  endpoints the app uses are forwarded (fixed methods, 8 KiB cap on JSON bodies, 12 MiB cap on
+  `POST /uploads`), and the server listens on `127.0.0.1`.
 - GitHub Pages workflow for the static demo (`.github/workflows/web.yml`): builds on pull requests;
   deployment is manual (`workflow_dispatch`), allowed only from `main`, and not active until Pages is
   enabled.
-- Tests: 88 frontend unit/UI/integration tests (Vitest), a bundle secret/host check, and Python
-  contract and real-HTTP integration tests that run the frontend's endpoints, including a real
-  pipeline run via `POST /projects/{project}/run`, against a live `uvicorn`.
-- `frontend/README.md` and a documented dataset-upload gap with a proposal for a safe, separate
-  implementation.
+- Tests: frontend unit/UI/integration tests (Vitest), a bundle secret/host check, Python contract and
+  upload/project/pipeline tests (`tests/test_local_uploads_and_projects.py`,
+  `tests/test_frontend_contract.py`, `tests/test_frontend_integration.py`), and Playwright browser E2E
+  suites covering both the static Public Demo (`frontend/e2e`) and the full-stack Local Operations
+  workflow (`frontend/e2e-local`).
+- `frontend/README.md` documenting Public Demo vs Local Operations, the local CSV-to-pipeline workflow,
+  upload storage, data removal, and security boundaries.
 
 - Real-browser tests (`frontend/e2e`, Playwright with the installed Chrome) of the static public build
   served under `/Quaero/`: asset loading, console and network cleanliness, every screen, the phone
