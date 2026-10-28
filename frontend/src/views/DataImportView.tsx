@@ -15,6 +15,8 @@ import {
   PlayCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { toCsv } from '../utils/csv';
+import { downloadTextFile, fileStem } from '../utils/download';
 import { parseCSV, DatasetProfile, ColumnProfile } from '../utils/csvProfiler';
 
 export const DataImportView: React.FC = () => {
@@ -96,19 +98,11 @@ export const DataImportView: React.FC = () => {
   // Download parsed CSV
   const downloadCSV = () => {
     if (!profile) return;
-    const lines = [
-      profile.headers.join(','),
-      ...profile.allRows.map((r) =>
-        profile.headers.map((h) => JSON.stringify(r[h] ?? '')).join(','),
-      ),
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cleaned_${profile.fileName}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadTextFile(
+      `cleaned_${profile.fileName}`,
+      toCsv(profile.headers, profile.allRows),
+      'text/csv;charset=utf-8;',
+    );
   };
 
   // Download JSON audit report
@@ -125,13 +119,11 @@ export const DataImportView: React.FC = () => {
       generated_at: new Date().toISOString(),
       generator: 'Quaero Web v0.7.0 Browser Profiler',
     };
-    const blob = new Blob([JSON.stringify(audit, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `dq_audit_${profile.fileName.replace(/\.csv$/, '')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadTextFile(
+      `dq_audit_${fileStem(profile.fileName)}.json`,
+      JSON.stringify(audit, null, 2),
+      'application/json',
+    );
   };
 
   return (

@@ -1,3 +1,5 @@
+import { detectDelimiter, parseCsvText } from './csv';
+
 /**
  * Browser-side CSV parser and data quality profiler.
  * Runs 100% locally in the browser with zero external network requests.
@@ -39,63 +41,38 @@ export interface DatasetProfile {
   allRows: Record<string, any>[];
 }
 
-export function detectDelimiter(text: string): string {
-  const firstLine = text.split('\n')[0] || '';
-  const commaCount = (firstLine.match(/,/g) || []).length;
-  const semicolonCount = (firstLine.match(/;/g) || []).length;
-  const tabCount = (firstLine.match(/\t/g) || []).length;
+export { detectDelimiter };
 
-  if (tabCount > commaCount && tabCount > semicolonCount) return '\t';
-  if (semicolonCount > commaCount) return ';';
-  return ',';
+/** Make header names unique and non-empty so no column is silently overwritten. */
+function uniqueHeaders(raw: string[]): string[] {
+  const seen = new Map<string, number>();
+  return raw.map((header, index) => {
+    const base = header.trim() || `column_${index + 1}`;
+    const count = (seen.get(base) ?? 0) + 1;
+    seen.set(base, count);
+    return count === 1 ? base : `${base}_${count}`;
+  });
 }
 
 export function parseCSV(rawText: string, fileName: string = 'dataset.csv'): DatasetProfile {
-  const text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const lines = text.split('\n').filter((l) => l.trim().length > 0);
-
-  if (lines.length === 0) {
+  if (rawText.trim().length === 0) {
     throw new Error('The provided CSV file is empty.');
   }
 
-  const delimiter = detectDelimiter(text);
+  const delimiter = detectDelimiter(rawText);
+  const table = parseCsvText(rawText, delimiter);
+  if (table.length === 0) {
+    throw new Error('The provided CSV file is empty.');
+  }
 
-  // Parse lines into cells considering quotes
-  const parseLine = (line: string): string[] => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          current += '"';
-          i++; // skip escaped quote
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === delimiter && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  };
-
-  const rawHeaders = parseLine(lines[0]);
-  const headers = rawHeaders.map((h, i) => (h ? h.replace(/^["']|["']$/g, '') : `column_${i + 1}`));
+  const headers = uniqueHeaders(table[0]);
 
   const allRows: Record<string, any>[] = [];
   const rowHashTracker = new Set<string>();
   let duplicateRows = 0;
 
-  for (let i = 1; i < lines.length; i++) {
-    const rawCells = parseLine(lines[i]);
-    if (rawCells.length === 1 && rawCells[0] === '') continue;
+  for (let i = 1; i < table.length; i++) {
+    const rawCells = table[i];
 
     const rowObj: Record<string, any> = {};
     const rowHash = rawCells.join('|');
@@ -106,12 +83,7 @@ export function parseCSV(rawText: string, fileName: string = 'dataset.csv'): Dat
     }
 
     headers.forEach((header, colIdx) => {
-      let cell = rawCells[colIdx] ?? '';
-      // Strip surrounding quotes
-      if (cell.startsWith('"') && cell.endsWith('"')) {
-        cell = cell.slice(1, -1).replace(/""/g, '"');
-      }
-      rowObj[header] = cell;
+      rowObj[header] = rawCells[colIdx] ?? '';
     });
 
     allRows.push(rowObj);

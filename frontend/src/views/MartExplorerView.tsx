@@ -11,6 +11,8 @@ import {
   Columns,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { toCsv } from '../utils/csv';
+import { downloadTextFile } from '../utils/download';
 import { MartInfo, MartPreviewResponse } from '../types/api';
 
 export const MartExplorerView: React.FC = () => {
@@ -95,20 +97,11 @@ export const MartExplorerView: React.FC = () => {
   const handleDownloadCsv = () => {
     if (!preview || filteredRows.length === 0) return;
 
-    const cols = preview.columns;
-    const csvLines = [
-      cols.join(','),
-      ...filteredRows.map((r) =>
-        cols.map((col) => JSON.stringify(r[col] ?? '')).join(','),
-      ),
-    ];
-    const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${selectedProject}_${selectedMart}_page${page}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadTextFile(
+      `${selectedProject}_${selectedMart}_page${page}.csv`,
+      toCsv(preview.columns, filteredRows),
+      'text/csv;charset=utf-8;',
+    );
   };
 
   const totalPages = preview ? Math.max(1, Math.ceil(preview.total_rows / pageSize)) : 1;
