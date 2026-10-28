@@ -5,6 +5,7 @@ import {
   Sun,
   Server,
   Layers,
+  FileSpreadsheet,
   ChevronDown,
   Github,
   CheckCircle2,
@@ -12,13 +13,12 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { ProjectSelect } from './ProjectSelect';
 
 export const Header: React.FC = () => {
   const {
     mode,
-    selectedProject,
-    setSelectedProject,
-    projects,
+    browserWorkspaceActive,
     theme,
     toggleTheme,
     connectionStatus,
@@ -77,20 +77,13 @@ export const Header: React.FC = () => {
           <label htmlFor="project-select" className="sr-only">
             Select Active Project
           </label>
-          <div className="relative inline-flex items-center">
-            <Layers className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-            <select
-              id="project-select"
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="h-9 appearance-none rounded-xl border border-slate-300 bg-slate-100 py-1 pl-8.5 pr-8 text-xs font-bold text-slate-900 transition hover:bg-slate-200 focus:border-sky-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus:border-sky-400"
-            >
-              {projects.map((p) => (
-                <option key={p.project} value={p.project}>
-                  {p.project} ({p.marts_count} marts)
-                </option>
-              ))}
-            </select>
+          <div className="relative inline-flex max-w-[20rem] items-center">
+            {browserWorkspaceActive ? (
+              <FileSpreadsheet className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-sky-600 dark:text-sky-300" />
+            ) : (
+              <Layers className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            )}
+            <ProjectSelect id="project-select" className="h-9 w-full truncate py-1 pl-8.5 pr-8" />
             <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
           </div>
         </div>

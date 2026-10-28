@@ -77,7 +77,7 @@ export const DataImportView: React.FC = () => {
           setSelectedColumnName(newProfile.columns[0].name);
         }
         setPreviewPage(1);
-        showFlash(`Successfully parsed ${file.name} in-browser (${newProfile.totalRows} rows, ${newProfile.totalColumns} columns).`, 'success');
+        showFlash(`Created the Browser workspace for ${file.name} (${newProfile.totalRows} rows, ${newProfile.totalColumns} columns). It is selected as the active context and stays in this tab only.`, 'success');
       } catch (err: any) {
         showFlash(`CSV parsing failed: ${err.message}`, 'error');
       }
@@ -240,22 +240,32 @@ export const DataImportView: React.FC = () => {
         <>
           <div className="flex flex-col gap-3 rounded-2xl border border-sky-300 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-950/40 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="text-sm font-bold text-sky-950 dark:text-sky-100">Your dataset is ready to analyze</div>
+              <div className="text-sm font-bold text-sky-950 dark:text-sky-100">Browser workspace created and selected</div>
               <p className="text-xs text-sky-900 dark:text-sky-200">
-                Filter it, group it, calculate totals and averages, chart the result and download it, without leaving your browser.
+                The Overview and Project Explorer now describe this dataset. Filter it, group it, chart the result and download it,
+                without leaving your browser. It is kept in this tab only and is lost when you reload.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setWorkspaceTab('preview');
-                setActiveTab('analyze');
-              }}
-              className="flex shrink-0 items-center justify-center space-x-1.5 rounded-xl bg-sky-600 px-5 py-3 text-sm font-bold text-white shadow-xs hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
-            >
-              <span>Analyze This Dataset</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setActiveTab('overview')}
+                className="flex items-center justify-center space-x-1.5 rounded-xl border border-sky-400 bg-white px-4 py-3 text-sm font-bold text-sky-900 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-100 dark:hover:bg-sky-900"
+              >
+                <span>Open Overview</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setWorkspaceTab('preview');
+                  setActiveTab('analyze');
+                }}
+                className="flex items-center justify-center space-x-1.5 rounded-xl bg-sky-600 px-5 py-3 text-sm font-bold text-white shadow-xs hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
+              >
+                <span>Analyze This Dataset</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* Dataset Profiling Metrics */}

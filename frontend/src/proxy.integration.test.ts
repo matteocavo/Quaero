@@ -122,7 +122,9 @@ describe('API key handling', () => {
       expect(res.text).not.toContain(KEY);
     }
     expect(seen).toHaveLength(0);
-  });
+    // The first request makes Vite transform modules and pre-bundle dependencies, which can take several
+    // seconds on a busy machine; the assertion is about content, not speed.
+  }, 30_000);
 
   it('does not echo the key in proxied responses', async () => {
     const res = await raw('GET', '/api/projects');
