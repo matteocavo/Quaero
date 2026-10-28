@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { stopProcessTree } from './processes';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
 const FRONTEND_DIR = resolve(import.meta.dirname, '..');
@@ -74,12 +75,8 @@ test.describe('Local Operations full-stack E2E (FastAPI + Python pipeline + Reac
   });
 
   test.afterAll(async () => {
-    if (viteProc && !viteProc.killed) {
-      viteProc.kill();
-    }
-    if (apiProc && !apiProc.killed) {
-      apiProc.kill();
-    }
+    stopProcessTree(viteProc);
+    stopProcessTree(apiProc);
     if (tempWorkspace) {
       try {
         rmSync(tempWorkspace, { recursive: true, force: true });

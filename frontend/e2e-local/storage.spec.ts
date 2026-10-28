@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { stopProcessTree } from './processes';
 
 /**
  * The local data lifecycle against the real stack: a real FastAPI process, real files on disk, the real
@@ -115,8 +116,8 @@ test.describe('Local data lifecycle (real FastAPI, real files, real crash)', () 
   });
 
   test.afterAll(async () => {
-    viteProc?.kill();
-    apiProc?.kill();
+    stopProcessTree(viteProc);
+    stopProcessTree(apiProc);
     try {
       rmSync(workspace, { recursive: true, force: true });
     } catch {
