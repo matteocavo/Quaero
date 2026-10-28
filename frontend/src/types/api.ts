@@ -198,6 +198,7 @@ export interface UploadResponse {
   candidate_dimensions: string[];
   candidate_time_columns: string[];
   created_at: string;
+  session_id: string | null;
 }
 
 export interface UploadsResponse {
@@ -226,6 +227,80 @@ export interface ProjectCreateResponse {
   created_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// Local data lifecycle (FastAPI, Local Operations mode only)
+// ---------------------------------------------------------------------------
+
+export type LifecyclePolicy = 'ask_on_exit' | 'auto_cleanup' | 'keep_files';
+export type CleanupScope = 'current_session' | 'orphaned' | 'single_upload' | 'project_artifacts';
+
+export interface StorageUploadItem {
+  upload_id: string;
+  original_filename: string | null;
+  size_bytes: number;
+  created_at: string | null;
+  /** `saved` = a project uses it; otherwise temporary: made by this session or left by an earlier one. */
+  state: 'current_session' | 'orphaned' | 'saved';
+  linked_projects: string[];
+  incomplete: boolean;
+}
+
+export interface StorageProjectItem {
+  project: string;
+  kind: 'upload_project' | 'preexisting';
+  upload_id: string | null;
+  config_bytes: number;
+  artifacts_bytes: number;
+  artifact_files: number;
+  marts_count: number;
+  can_clear_artifacts: boolean;
+}
+
+export interface StorageTotals {
+  temporary_uploads_bytes: number;
+  saved_uploads_bytes: number;
+  project_configs_bytes: number;
+  artifacts_bytes: number;
+  total_bytes: number;
+}
+
+export interface StorageStatusResponse {
+  session_id: string;
+  lifecycle_policy: LifecyclePolicy;
+  totals: StorageTotals;
+  current_session_uploads: number;
+  orphaned_uploads: number;
+  uploads: StorageUploadItem[];
+  projects: StorageProjectItem[];
+}
+
+export interface LifecyclePolicyRequest {
+  lifecycle_policy: LifecyclePolicy;
+}
+
+export interface LifecyclePolicyResponse {
+  lifecycle_policy: LifecyclePolicy;
+}
+
+export interface CleanupRequest {
+  scope: CleanupScope;
+  confirm: boolean;
+  target_id?: string | null;
+}
+
+export interface CleanupSkipped {
+  id: string;
+  reason: string;
+}
+
+export interface CleanupResponse {
+  scope: CleanupScope;
+  deleted: string[];
+  freed_bytes: number;
+  skipped: CleanupSkipped[];
+  message: string;
+}
+
 export interface MetricDefinition {
   metric_name: string;
   source_mart: string;
@@ -247,4 +322,5 @@ export type NavigationTab =
   | 'operations'
   | 'marts'
   | 'quality'
-  | 'lineage';
+  | 'lineage'
+  | 'storage';

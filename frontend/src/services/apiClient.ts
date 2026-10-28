@@ -15,6 +15,11 @@ import {
   LineageResponse,
   UploadResponse,
   UploadsResponse,
+  StorageStatusResponse,
+  LifecyclePolicy,
+  LifecyclePolicyResponse,
+  CleanupRequest,
+  CleanupResponse,
   AppMode,
 } from '../types/api';
 import { LOCAL_UNAVAILABLE_MESSAGE, localOperationsAvailable } from '../utils/runtime';
@@ -160,6 +165,34 @@ export class QuaeroApiClient {
       throw new ApiError(`Upload '${uploadId}' is not available in Public Demo mode.`, 404);
     }
     return this.request<UploadResponse>(`/uploads/${encodeURIComponent(uploadId)}`);
+  }
+
+  public async getStorage(): Promise<StorageStatusResponse> {
+    if (this.mode === 'demo') {
+      throw new ApiError('Local storage is only available in Local Operations mode.', 403);
+    }
+    return this.request<StorageStatusResponse>('/storage');
+  }
+
+  public async setLifecyclePolicy(policy: LifecyclePolicy): Promise<LifecyclePolicyResponse> {
+    if (this.mode === 'demo') {
+      throw new ApiError('Local storage is only available in Local Operations mode.', 403);
+    }
+    return this.request<LifecyclePolicyResponse>('/storage/policy', {
+      method: 'POST',
+      body: JSON.stringify({ lifecycle_policy: policy }),
+    });
+  }
+
+  /** Permanently deletes temporary data. The server refuses unless `confirm` is true. */
+  public async cleanupStorage(payload: CleanupRequest): Promise<CleanupResponse> {
+    if (this.mode === 'demo') {
+      throw new ApiError('Local storage is only available in Local Operations mode.', 403);
+    }
+    return this.request<CleanupResponse>('/storage/cleanup', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   public async createProject(payload: ProjectCreateRequest): Promise<ProjectCreateResponse> {

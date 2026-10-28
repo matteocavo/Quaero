@@ -16,6 +16,7 @@ describe('proxy allowlist', () => {
     ['GET', '/api/health'],
     ['GET', '/api/uploads'],
     ['GET', '/api/uploads/upload_a1b2c3d4e5f6'],
+    ['GET', '/api/storage'],
     ['GET', '/api/projects'],
     ['GET', '/api/projects/release_impact/overview'],
     ['GET', '/api/projects/release_impact/summary'],
@@ -34,10 +35,25 @@ describe('proxy allowlist', () => {
     expect(allowed('POST', '/api/projects/release_impact/run', '120')).toBe(true);
     expect(allowed('POST', '/api/projects', '250')).toBe(true);
     expect(allowed('POST', '/api/uploads', '4096')).toBe(true);
+    expect(allowed('POST', '/api/storage/policy', '40')).toBe(true);
+    expect(allowed('POST', '/api/storage/cleanup', '90')).toBe(true);
+  });
+
+  it('keeps the storage endpoints to the verbs and paths the app uses', () => {
+    // reads are GET only, changes are POST only; PUT/DELETE stay unavailable (see the method test below)
+    expect(allowed('POST', '/api/storage')).toBe(false);
+    expect(allowed('GET', '/api/storage/cleanup')).toBe(false);
+    expect(allowed('GET', '/api/storage/policy')).toBe(false);
+    expect(allowed('PUT', '/api/storage/policy', '40')).toBe(false);
+    expect(allowed('DELETE', '/api/storage')).toBe(false);
+    expect(allowed('POST', '/api/storage/cleanup/extra', '90')).toBe(false);
+    expect(allowed('POST', '/api/storage/../uploads', '90')).toBe(false);
+    expect(allowed('POST', '/api/storage/cleanup', String(MAX_BODY_BYTES + 1))).toBe(false); // too large
+    expect(allowed('POST', '/api/storage/cleanup')).toBe(false); // no content-length
   });
 
   it('only exposes endpoints the frontend uses', () => {
-    expect(ALLOWED_ROUTES).toHaveLength(10);
+    expect(ALLOWED_ROUTES).toHaveLength(12);
   });
 
   it.each([

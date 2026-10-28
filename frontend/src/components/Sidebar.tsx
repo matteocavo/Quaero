@@ -12,6 +12,7 @@ import {
   Database,
   ExternalLink,
   BarChart3,
+  HardDrive,
 } from 'lucide-react';
 import { ProjectSelect } from './ProjectSelect';
 import { useApp } from '../context/AppContext';
@@ -21,6 +22,8 @@ interface NavItem {
   id: NavigationTab;
   label: string;
   icon: React.ElementType;
+  /** Only shown in Local Operations mode: it manages files on the machine running the API. */
+  liveOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -33,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'marts', label: 'Mart Explorer', icon: Table },
   { id: 'quality', label: 'Quality & Anomalies', icon: ShieldAlert },
   { id: 'lineage', label: 'Data Lineage DAG', icon: GitFork },
+  { id: 'storage', label: 'Local Storage', icon: HardDrive, liveOnly: true },
 ];
 
 export const Sidebar: React.FC = () => {
@@ -69,7 +73,7 @@ export const Sidebar: React.FC = () => {
             Analytics Workflow
           </div>
           <nav className="space-y-0.5">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter((item) => !item.liveOnly || mode === 'live').map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (

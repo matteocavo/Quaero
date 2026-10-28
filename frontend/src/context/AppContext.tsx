@@ -373,6 +373,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [apiClient, mode, selectedProject, showFlash]);
 
+  // After a crash or a closed window, temporary uploads of the earlier session stay on disk. Say so, and
+  // never delete them automatically: the Local Storage screen lists them and asks before deleting.
+  const reportLeftoverUploads = useCallback(async () => {
+    try {
+      const storage = await apiClient.getStorage();
+      if (storage.orphaned_uploads > 0) {
+        const n = storage.orphaned_uploads;
+        showFlash(
+          `${n} temporary upload${n === 1 ? '' : 's'} from an earlier session ${n === 1 ? 'is' : 'are'} still on disk. Open Local Storage to review or delete ${n === 1 ? 'it' : 'them'}.`,
+          'info',
+        );
+      }
+    } catch {
+      // An API without the storage endpoints has nothing to report.
+    }
+  }, [apiClient, showFlash]);
+
   // Initialize
   useEffect(() => {
     if (mode === 'live') {
@@ -380,13 +397,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (connected) {
           refreshProjects();
           refreshUploads();
+          void reportLeftoverUploads();
         }
       });
     } else {
       setConnectionStatus('demo');
       refreshProjects();
     }
-  }, [mode, testLiveConnection, refreshProjects, refreshUploads]);
+  }, [mode, testLiveConnection, refreshProjects, refreshUploads, reportLeftoverUploads]);
 
   useEffect(() => {
     refreshOverview();
