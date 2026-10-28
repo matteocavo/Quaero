@@ -6,6 +6,9 @@ import {
   ProjectOverviewResponse,
 } from '../types/api';
 import { QuaeroApiClient, ApiError } from '../services/apiClient';
+import { buildDataset } from '../analysis/dataset';
+import { AnalysisError, runAnalysis, validateSpec } from '../analysis/query';
+import type { AnalysisResult, AnalysisSpec, Dataset, DatasetOrigin } from '../analysis/types';
 import {
   DatasetProfile,
   parseCSV,
@@ -36,9 +39,23 @@ interface AppContextType {
   refreshOverview: () => Promise<void>;
   testLiveConnection: () => Promise<boolean>;
   activeDatasetProfile: DatasetProfile | null;
-  setActiveDatasetProfile: (profile: DatasetProfile | null) => void;
   loadSampleDataset: (sampleType?: 'release_impact' | 'global_indicators') => void;
+  /** Replace the loaded dataset. Resets the analysis and the workspace. */
+  loadDatasetProfile: (profile: DatasetProfile, origin: DatasetOrigin) => void;
+  activeDataset: Dataset | null;
+  workspaceTab: WorkspaceTab;
+  setWorkspaceTab: (tab: WorkspaceTab) => void;
+  draftSpec: AnalysisSpec;
+  setDraftSpec: (spec: AnalysisSpec) => void;
+  appliedSpec: AnalysisSpec | null;
+  analysisResult: AnalysisResult | null;
+  analysisError: string | null;
+  runDraftAnalysis: () => boolean;
 }
+
+export type WorkspaceTab = 'preview' | 'quality' | 'explore' | 'build' | 'results' | 'export';
+
+const EMPTY_SPEC: AnalysisSpec = { filters: [], dimensions: [], measures: [{ fn: 'count' }] };
 
 const AppContext = createContext<AppContextType | null>(null);
 
@@ -78,14 +95,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isConnectionModalOpen, setIsConnectionModalOpen] = useState<boolean>(false);
   const [flashMessage, setFlashMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
 
-  // Active dataset profile (parsed in-browser from upload or sample)
-  const [activeDatasetProfile, setActiveDatasetProfile] = useState<DatasetProfile | null>(() => {
-    try {
-      return parseCSV(SAMPLE_RELEASE_IMPACT_CSV, 'release_impact_sample.csv');
-    } catch {
-      return null;
-    }
+  // The dataset the user loaded (parsed in-browser). None until they upload a file or pick a sample.
+  const [activeDatasetProfile, setActiveDatasetProfile] = useState<DatasetProfile | null>(null);
+  const [datasetMeta, setDatasetMeta] = useState<{ id: number; origin: DatasetOrigin }>({
+    id: 0,
+    origin: 'upload',
   });
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('preview');
+  const [draftSpec, setDraftSpec] = useState<AnalysisSpec>(EMPTY_SPEC);
+  const [appliedSpec, setAppliedSpec] = useState<AnalysisSpec | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  // Typed rows for the analysis, rebuilt only when a different dataset is loaded.
+  const activeDataset = useMemo<Dataset | null>(
+    () => (activeDatasetProfile ? buildDataset(activeDatasetProfile, datasetMeta.origin, datasetMeta.id) : null),
+    [activeDatasetProfile, datasetMeta],
+  );
+
+  const loadDatasetProfile = useCallback((profile: DatasetProfile, origin: DatasetOrigin) => {
+    setActiveDatasetProfile(profile);
+    setDatasetMeta((previous) => ({ id: previous.id + 1, origin }));
+    // Nothing from the previous dataset may survive: filters, grouping, results and the open tab.
+    setDraftSpec(EMPTY_SPEC);
+    setAppliedSpec(null);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setWorkspaceTab('preview');
+  }, []);
+
+  const runDraftAnalysis = useCallback((): boolean => {
+    if (!activeDataset) return false;
+    const problems = validateSpec(activeDataset, draftSpec);
+    if (problems.length > 0) {
+      setAnalysisError(problems.join(' '));
+      return false;
+    }
+    try {
+      const result = runAnalysis(activeDataset, draftSpec);
+      setAppliedSpec(draftSpec);
+      setAnalysisResult(result);
+      setAnalysisError(null);
+      return true;
+    } catch (err) {
+      setAnalysisError(err instanceof AnalysisError ? err.message : 'The analysis could not be calculated.');
+      return false;
+    }
+  }, [activeDataset, draftSpec]);
 
   const loadSampleDataset = useCallback((sampleType: 'release_impact' | 'global_indicators' = 'release_impact') => {
     try {
@@ -94,7 +150,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const fileName = isRelease ? 'release_impact_sample.csv' : 'global_economic_indicators_sample.csv';
 
       const profile = parseCSV(rawText, fileName);
-      setActiveDatasetProfile(profile);
+      loadDatasetProfile(profile, 'sample');
       setFlashMessage({
         text: `Loaded sample ${fileName} into browser memory. Nothing is uploaded.`,
         type: 'success',
@@ -102,7 +158,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err: any) {
       setFlashMessage({ text: `Failed to load sample: ${err.message}`, type: 'error' });
     }
-  }, []);
+  }, [loadDatasetProfile]);
 
   // Single client instance
   const apiClient = useMemo(() => {
@@ -229,8 +285,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshOverview,
     testLiveConnection,
     activeDatasetProfile,
-    setActiveDatasetProfile,
     loadSampleDataset,
+    loadDatasetProfile,
+    activeDataset,
+    workspaceTab,
+    setWorkspaceTab,
+    draftSpec,
+    setDraftSpec,
+    appliedSpec,
+    analysisResult,
+    analysisError,
+    runDraftAnalysis,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
