@@ -439,10 +439,15 @@ def _clear_project_artifacts(
     project_root: Path, project: str
 ) -> tuple[int, int, list[CleanupSkipped]]:
     projects_root = project_root.resolve() / "projects"
-    project_dir = projects_root / project
-    # The name must match an existing direct child of projects/; it is never joined into a path otherwise.
-    names = {p.name for p in projects_root.iterdir()} if projects_root.is_dir() else set()
-    if project not in names:
+    # The name from the request is only compared with what is on disk; the folder that is used comes from the
+    # directory listing, so the request never takes part in building a path.
+    project_dir = None
+    if projects_root.is_dir():
+        for child in projects_root.iterdir():
+            if child.name == project:
+                project_dir = child
+                break
+    if project_dir is None:
         raise LifecycleNotFound(f"Project '{project}' does not exist.")
     item = _project_item(project_dir)
     if item is None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -26,7 +25,7 @@ router = APIRouter(tags=["storage"], dependencies=[Depends(require_api_key)])
     response_model=StorageStatusResponse,
     summary="Space used by local uploads and projects",
 )
-def get_storage(project_root: Annotated[Path, Depends(get_project_root)]) -> StorageStatusResponse:
+def get_storage(project_root: Path = Depends(get_project_root)) -> StorageStatusResponse:
     return lifecycle.get_storage_status(project_root)
 
 
@@ -37,7 +36,7 @@ def get_storage(project_root: Annotated[Path, Depends(get_project_root)]) -> Sto
 )
 def post_policy(
     body: LifecyclePolicyRequest,
-    project_root: Annotated[Path, Depends(get_project_root)],
+    project_root: Path = Depends(get_project_root),
 ) -> LifecyclePolicyResponse:
     try:
         return LifecyclePolicyResponse(
@@ -58,7 +57,7 @@ def post_policy(
 )
 def post_cleanup(
     body: CleanupRequest,
-    project_root: Annotated[Path, Depends(get_project_root)],
+    project_root: Path = Depends(get_project_root),
 ) -> CleanupResponse:
     try:
         return lifecycle.execute_cleanup(project_root, body.scope, body.confirm, body.target_id)
