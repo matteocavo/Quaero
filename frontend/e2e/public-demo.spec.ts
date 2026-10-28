@@ -92,7 +92,7 @@ test.describe('public demo on desktop', () => {
       buffer: Buffer.from(source),
     });
 
-    await expect(page.getByText(/tricky\.csv in-browser \(3 rows, 3 columns\)/)).toBeVisible();
+    await expect(page.getByText(/Created the Browser workspace for tricky\.csv \(3 rows, 3 columns\)/)).toBeVisible();
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),

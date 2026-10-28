@@ -94,14 +94,41 @@ How it works, and what it is not:
 
 The code is in `src/analysis/` (pure TypeScript, no React) and `src/views/analysis/`.
 
+### The Browser Workspace
+
+A loaded dataset becomes the **Browser Workspace**: a temporary context that sits next to the demo
+projects in the global selector, in its own group ("Browser workspace (this tab only)") and with a different
+colour, so it cannot be mistaken for a project. Uploading a CSV selects it automatically.
+
+| Screen | With the Browser Workspace selected |
+|---|---|
+| Overview Dashboard | rows, columns and types, completeness, Data Quality score, schema, findings, the current filters and the latest analysis, all computed from the CSV |
+| Project Explorer | origin, format, dimensions, per-column statistics, and the analyses run in this session (each can be reopened in Build Analysis) |
+| Analyze Dataset | the same state as above: filters and analyses are kept while another context is selected |
+| Pipeline Operations, Mart Explorer, Quality & Anomalies, Data Lineage DAG | replaced by an explanation: Parquet marts, Python lineage and pipeline execution are not available in the static demo. No demo data is shown instead |
+
+Rules it follows:
+
+- It lives **only in the memory of the tab**. Nothing is uploaded, written to `localStorage`,
+  `sessionStorage` or IndexedDB, or sent anywhere. **Reloading the page removes it** (by design).
+- Choosing a demo project leaves the workspace but keeps the dataset, its filters and its analyses in memory;
+  choosing the workspace again (or opening Analyze Dataset) brings them back. Opening Analyze Dataset while a
+  project is selected switches to the workspace; choosing a project while on it moves to that project's Overview.
+- Loading another file replaces the dataset and discards its filters, analyses and results. A rejected file
+  (empty, header only, too large, not a CSV) changes nothing. *Remove dataset* (with a confirmation) forgets
+  everything and returns to the last selected project.
+- It invents nothing: no KPI, run, mart or lineage exists for it. The demo projects and every existing screen
+  are unchanged when it is not selected.
+
 ## Tests
 
 ```bash
 npm run typecheck
 npm run build:pages      # the static public build (base /Quaero/, demo only)
 npm run test:e2e         # real Chrome against that build: assets, console, every screen, phone layout,
-                         # CSV round trip, no API requests, and the CSV analysis workflow
-                         # (upload -> filter -> aggregate -> chart -> export) on desktop and at 390 px;
+                         # CSV round trip, no API requests, the CSV analysis workflow
+                         # (upload -> filter -> aggregate -> chart -> export) and the Browser Workspace
+                         # (selector, Overview, Explorer, demo <-> workspace), on desktop and at 390 px;
                          # needs Chrome installed
 npm test                 # proxy policy, API client, CSV profiler and reader/writer, the analysis engine
                          # (filters, aggregations, nulls, limits, exports), the upload -> analyze ->

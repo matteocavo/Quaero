@@ -10,6 +10,11 @@ documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/
 Candidate for v0.7.0 - React web app. Not released.
 
 ### Added
+- **Browser Workspace**: a CSV loaded in the browser becomes a temporary context in the global selector,
+  separate from the demo projects. The Overview Dashboard and Project Explorer describe it with real
+  statistics, schema, quality, filters and the analyses created; Analyze Dataset shares the same state.
+  Mart, lineage and pipeline screens say they are unavailable for it instead of showing demo data. It is
+  kept in the memory of the tab only (nothing is stored or uploaded; a reload removes it).
 - **CSV analysis workspace** in the web app: after importing a CSV, *Analyze This Dataset* opens a
   browser-only workspace (preview, data quality, filters, a visual query builder with group-by and
   count/sum/average/min/max, charts, and CSV/JSON exports). It runs on the uploaded rows only, with file
