@@ -3,6 +3,8 @@ import {
   ProjectsResponse,
   ProjectDetailResponse,
   ProjectOverviewResponse,
+  ProjectCreateRequest,
+  ProjectCreateResponse,
   MartsResponse,
   MartPreviewResponse,
   RunAcceptedResponse,
@@ -11,6 +13,13 @@ import {
   DataQualityResponse,
   AnomalyResponse,
   LineageResponse,
+  UploadResponse,
+  UploadsResponse,
+  StorageStatusResponse,
+  LifecyclePolicy,
+  LifecyclePolicyResponse,
+  CleanupRequest,
+  CleanupResponse,
   AppMode,
 } from '../types/api';
 import { LOCAL_UNAVAILABLE_MESSAGE, localOperationsAvailable } from '../utils/runtime';
@@ -67,9 +76,10 @@ export class QuaeroApiClient {
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
     const url = `${this.baseUrl}${cleanPath}`;
 
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string> || {}),
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...((options.headers as Record<string, string>) || {}),
     };
 
     try {
@@ -126,6 +136,76 @@ export class QuaeroApiClient {
       return { projects: DEMO_PROJECTS };
     }
     return this.request<ProjectsResponse>('/projects');
+  }
+
+  public async uploadCsv(file: File): Promise<UploadResponse> {
+    if (this.mode === 'demo') {
+      throw new ApiError(
+        'Server CSV uploads are disabled in Public Demo mode. Use the in-browser workspace or switch to Local Operations mode.',
+        403,
+      );
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request<UploadResponse>('/uploads', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  public async listUploads(): Promise<UploadsResponse> {
+    if (this.mode === 'demo') {
+      return { uploads: [] };
+    }
+    return this.request<UploadsResponse>('/uploads');
+  }
+
+  public async getUpload(uploadId: string): Promise<UploadResponse> {
+    if (this.mode === 'demo') {
+      throw new ApiError(`Upload '${uploadId}' is not available in Public Demo mode.`, 404);
+    }
+    return this.request<UploadResponse>(`/uploads/${encodeURIComponent(uploadId)}`);
+  }
+
+  public async getStorage(): Promise<StorageStatusResponse> {
+    if (this.mode === 'demo') {
+      throw new ApiError('Local storage is only available in Local Operations mode.', 403);
+    }
+    return this.request<StorageStatusResponse>('/storage');
+  }
+
+  public async setLifecyclePolicy(policy: LifecyclePolicy): Promise<LifecyclePolicyResponse> {
+    if (this.mode === 'demo') {
+      throw new ApiError('Local storage is only available in Local Operations mode.', 403);
+    }
+    return this.request<LifecyclePolicyResponse>('/storage/policy', {
+      method: 'POST',
+      body: JSON.stringify({ lifecycle_policy: policy }),
+    });
+  }
+
+  /** Permanently deletes temporary data. The server refuses unless `confirm` is true. */
+  public async cleanupStorage(payload: CleanupRequest): Promise<CleanupResponse> {
+    if (this.mode === 'demo') {
+      throw new ApiError('Local storage is only available in Local Operations mode.', 403);
+    }
+    return this.request<CleanupResponse>('/storage/cleanup', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  public async createProject(payload: ProjectCreateRequest): Promise<ProjectCreateResponse> {
+    if (this.mode === 'demo') {
+      throw new ApiError(
+        'Creating backend projects is disabled in Public Demo mode. Switch to Local Operations mode with a running Quaero backend.',
+        403,
+      );
+    }
+    return this.request<ProjectCreateResponse>('/projects', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   public async getProjectOverview(project: string): Promise<ProjectOverviewResponse> {
@@ -217,6 +297,8 @@ export class QuaeroApiClient {
     project: string,
     question: string,
     sourceUrl?: string,
+    metricColumn?: string,
+    dimensionColumn?: string,
   ): Promise<RunAcceptedResponse> {
     if (this.mode === 'demo') {
       throw new ApiError(
@@ -229,6 +311,8 @@ export class QuaeroApiClient {
       body: JSON.stringify({
         question,
         ...(sourceUrl ? { source_url: sourceUrl } : {}),
+        ...(metricColumn !== undefined ? { metric_column: metricColumn } : {}),
+        ...(dimensionColumn !== undefined ? { dimension_column: dimensionColumn } : {}),
       }),
     });
   }

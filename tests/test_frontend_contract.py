@@ -53,7 +53,7 @@ def test_frontend_optional_fields_are_nullable_or_defaulted_in_the_backend() -> 
 def test_frontend_only_calls_endpoints_that_exist() -> None:
     openapi_paths = set(app.openapi()["paths"])
     client_paths = read_client_paths()
-    assert len(client_paths) == 12
+    assert len(client_paths) == 17  # 14 + /storage, /storage/policy, /storage/cleanup
     missing = client_paths - openapi_paths
     assert not missing, f"frontend calls endpoints the API does not have: {sorted(missing)}"
 
@@ -63,9 +63,34 @@ def test_run_request_matches_the_frontend_payload() -> None:
     assert set(interfaces["RunRequest"]) == _fields(schemas.RunRequest)
 
 
-def test_api_has_no_dataset_upload_endpoint_yet() -> None:
-    """Documented gap: new datasets can only be run from a project config or a public URL."""
-    paths = set(app.openapi()["paths"])
-    assert not [p for p in paths if "upload" in p.lower()]
-    run_schema = app.openapi()["components"]["schemas"]["RunRequest"]
-    assert set(run_schema["properties"]) == {"question", "source_url"}
+def test_api_exposes_upload_and_project_creation_endpoints() -> None:
+    """Verifies that local CSV upload and project creation endpoints match the frontend contract."""
+    openapi = app.openapi()
+    paths = openapi["paths"]
+    assert set(paths["/uploads"].keys()) == {"get", "post"}
+    assert set(paths["/uploads/{upload_id}"].keys()) == {"get"}
+    assert set(paths["/projects"].keys()) == {"get", "post"}
+    interfaces = read_interfaces()
+    assert set(interfaces["ProjectCreateRequest"]) == _fields(schemas.ProjectCreateRequest)
+
+
+def test_api_exposes_storage_endpoints_matching_the_frontend() -> None:
+    """The local data lifecycle endpoints and payloads match what the frontend sends and expects."""
+    paths = app.openapi()["paths"]
+    assert set(paths["/storage"].keys()) == {"get"}
+    assert set(paths["/storage/policy"].keys()) == {"post"}
+    assert set(paths["/storage/cleanup"].keys()) == {"post"}
+    assert {"/storage", "/storage/policy", "/storage/cleanup"} <= read_client_paths()
+    interfaces = read_interfaces()
+    for name in (
+        "StorageUploadItem",
+        "StorageProjectItem",
+        "StorageTotals",
+        "StorageStatusResponse",
+        "LifecyclePolicyRequest",
+        "LifecyclePolicyResponse",
+        "CleanupRequest",
+        "CleanupSkipped",
+        "CleanupResponse",
+    ):
+        assert set(interfaces[name]) == _fields(getattr(schemas, name)), name

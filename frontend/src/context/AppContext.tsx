@@ -4,6 +4,7 @@ import {
   NavigationTab,
   ProjectSummary,
   ProjectOverviewResponse,
+  UploadResponse,
 } from '../types/api';
 import { QuaeroApiClient, ApiError } from '../services/apiClient';
 import { buildDataset } from '../analysis/dataset';
@@ -45,8 +46,12 @@ interface AppContextType {
   flashMessage: { text: string; type: 'success' | 'info' | 'error' } | null;
   showFlash: (text: string, type?: 'success' | 'info' | 'error') => void;
   clearFlash: () => void;
-  refreshProjects: () => Promise<void>;
+  refreshProjects: (preferredProject?: string) => Promise<void>;
   refreshOverview: () => Promise<void>;
+  uploads: UploadResponse[];
+  selectedUploadId: string | null;
+  setSelectedUploadId: (uploadId: string | null) => void;
+  refreshUploads: () => Promise<UploadResponse[]>;
   testLiveConnection: () => Promise<boolean>;
   activeDatasetProfile: DatasetProfile | null;
   loadSampleDataset: (sampleType?: 'release_impact' | 'global_indicators') => void;
@@ -61,6 +66,11 @@ interface AppContextType {
   analysisResult: AnalysisResult | null;
   analysisError: string | null;
   runDraftAnalysis: () => boolean;
+  /** Put a ready-made analysis into the query builder (keeping the current filters) and run it. */
+  applySpec: (spec: AnalysisSpec) => boolean;
+  /** Column shown in the distribution of Explore & Filter; set when a suggestion points at one. */
+  distributionColumn: string;
+  setDistributionColumn: (column: string) => void;
   localOperationsAvailable: boolean;
   isMobileNavOpen: boolean;
   setMobileNavOpen: (open: boolean) => void;
@@ -119,6 +129,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedProject, setSelectedProjectRaw] = useState<string>('release_impact');
   const [browserWorkspaceActive, setBrowserWorkspaceActive] = useState<boolean>(false);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [uploads, setUploads] = useState<UploadResponse[]>([]);
+  const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
   const [currentOverview, setCurrentOverview] = useState<ProjectOverviewResponse | null>(null);
   const [loadingOverview, setLoadingOverview] = useState<boolean>(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'checking' | 'disconnected' | 'demo'>('demo');
@@ -133,6 +145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('preview');
   const [draftSpec, setDraftSpec] = useState<AnalysisSpec>(EMPTY_SPEC);
+  const [distributionColumn, setDistributionColumn] = useState<string>('');
   const [appliedSpec, setAppliedSpec] = useState<AnalysisSpec | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -149,6 +162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDatasetMeta((previous) => ({ id: previous.id + 1, origin }));
     // Nothing from the previous dataset may survive: filters, grouping, results and the open tab.
     setDraftSpec(EMPTY_SPEC);
+    setDistributionColumn('');
     setAppliedSpec(null);
     setAnalysisResult(null);
     setAnalysisError(null);
@@ -161,6 +175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearDataset = useCallback(() => {
     setActiveDatasetProfile(null);
     setDraftSpec(EMPTY_SPEC);
+    setDistributionColumn('');
     setAppliedSpec(null);
     setAnalysisResult(null);
     setAnalysisError(null);
@@ -201,37 +216,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [activeDatasetProfile, setSelectedProject],
   );
 
-  const runDraftAnalysis = useCallback((): boolean => {
-    if (!activeDataset) return false;
-    const problems = validateSpec(activeDataset, draftSpec);
-    if (problems.length > 0) {
-      setAnalysisError(problems.join(' '));
-      return false;
-    }
-    try {
-      const result = runAnalysis(activeDataset, draftSpec);
-      setAppliedSpec(draftSpec);
-      setAnalysisResult(result);
-      setAnalysisHistory((previous) =>
-        [
-          ...previous,
-          {
-            id: (previous[previous.length - 1]?.id ?? 0) + 1,
-            spec: draftSpec,
-            sentence: specToSentence(draftSpec),
-            inputRows: result.inputRows,
-            filteredRows: result.filteredRows,
-            groups: result.totalGroups,
-          },
-        ].slice(-10),
-      );
-      setAnalysisError(null);
-      return true;
-    } catch (err) {
-      setAnalysisError(err instanceof AnalysisError ? err.message : 'The analysis could not be calculated.');
-      return false;
-    }
-  }, [activeDataset, draftSpec]);
+  const runSpec = useCallback(
+    (spec: AnalysisSpec): boolean => {
+      if (!activeDataset) return false;
+      const problems = validateSpec(activeDataset, spec);
+      if (problems.length > 0) {
+        setAnalysisError(problems.join(' '));
+        return false;
+      }
+      try {
+        const result = runAnalysis(activeDataset, spec);
+        setAppliedSpec(spec);
+        setAnalysisResult(result);
+        setAnalysisHistory((previous) =>
+          [
+            ...previous,
+            {
+              id: (previous[previous.length - 1]?.id ?? 0) + 1,
+              spec,
+              sentence: specToSentence(spec),
+              inputRows: result.inputRows,
+              filteredRows: result.filteredRows,
+              groups: result.totalGroups,
+            },
+          ].slice(-10),
+        );
+        setAnalysisError(null);
+        return true;
+      } catch (err) {
+        setAnalysisError(err instanceof AnalysisError ? err.message : 'The analysis could not be calculated.');
+        return false;
+      }
+    },
+    [activeDataset],
+  );
+
+  const runDraftAnalysis = useCallback((): boolean => runSpec(draftSpec), [runSpec, draftSpec]);
+
+  const applySpec = useCallback(
+    (spec: AnalysisSpec): boolean => {
+      // The user's filters stay: a suggestion changes what is calculated, not which rows are used.
+      const next: AnalysisSpec = { ...spec, filters: draftSpec.filters, question: draftSpec.question };
+      setDraftSpec(next);
+      return runSpec(next);
+    },
+    [runSpec, draftSpec.filters, draftSpec.question],
+  );
 
   const loadSampleDataset = useCallback((sampleType: 'release_impact' | 'global_indicators' = 'release_impact') => {
     try {
@@ -273,6 +303,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     apiClient.setMode(newMode);
     // Never carry data from the other mode over (demo fixtures must not appear in Live).
     setProjects([]);
+    setUploads([]);
+    setSelectedUploadId(null);
     setCurrentOverview(null);
     if (newMode === 'demo') {
       setConnectionStatus('demo');
@@ -305,11 +337,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [localAvailable]);
 
   // Load projects list
-  const refreshProjects = useCallback(async () => {
+  const refreshProjects = useCallback(async (preferredProject?: string) => {
     try {
       const res = await apiClient.listProjects();
       setProjects(res.projects);
-      if (res.projects.length > 0 && !res.projects.some((p) => p.project === selectedProject)) {
+      const target = preferredProject || selectedProject;
+      if (preferredProject && res.projects.some((p) => p.project === preferredProject)) {
+        setSelectedProjectRaw(preferredProject);
+        setBrowserWorkspaceActive(false);
+      } else if (res.projects.length > 0 && !res.projects.some((p) => p.project === target)) {
         setSelectedProjectRaw(res.projects[0].project);
       }
     } catch (err: any) {
@@ -323,6 +359,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
   }, [apiClient, mode, selectedProject, showFlash]);
+
+  const refreshUploads = useCallback(async (): Promise<UploadResponse[]> => {
+    if (mode !== 'live') {
+      setUploads([]);
+      return [];
+    }
+    try {
+      const res = await apiClient.listUploads();
+      setUploads(res.uploads);
+      if (res.uploads.length > 0 && !selectedUploadId) {
+        setSelectedUploadId(res.uploads[0].upload_id);
+      }
+      return res.uploads;
+    } catch {
+      return [];
+    }
+  }, [apiClient, mode, selectedUploadId]);
 
   // Load overview for currently selected project
   const refreshOverview = useCallback(async () => {
@@ -343,19 +396,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [apiClient, mode, selectedProject, showFlash]);
 
+  // After a crash or a closed window, temporary uploads of the earlier session stay on disk. Say so, and
+  // never delete them automatically: the Local Storage screen lists them and asks before deleting.
+  const reportLeftoverUploads = useCallback(async () => {
+    try {
+      const storage = await apiClient.getStorage();
+      if (storage.orphaned_uploads > 0) {
+        const n = storage.orphaned_uploads;
+        showFlash(
+          `${n} temporary upload${n === 1 ? '' : 's'} from an earlier session ${n === 1 ? 'is' : 'are'} still on disk. Open Local Storage to review or delete ${n === 1 ? 'it' : 'them'}.`,
+          'info',
+        );
+      }
+    } catch {
+      // An API without the storage endpoints has nothing to report.
+    }
+  }, [apiClient, showFlash]);
+
   // Initialize
   useEffect(() => {
     if (mode === 'live') {
       testLiveConnection().then((connected) => {
         if (connected) {
           refreshProjects();
+          refreshUploads();
+          void reportLeftoverUploads();
         }
       });
     } else {
       setConnectionStatus('demo');
       refreshProjects();
     }
-  }, [mode, testLiveConnection, refreshProjects]);
+  }, [mode, testLiveConnection, refreshProjects, refreshUploads, reportLeftoverUploads]);
 
   useEffect(() => {
     refreshOverview();
@@ -388,6 +460,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearFlash,
     refreshProjects,
     refreshOverview,
+    uploads,
+    selectedUploadId,
+    setSelectedUploadId,
+    refreshUploads,
     testLiveConnection,
     activeDatasetProfile,
     loadSampleDataset,
@@ -401,6 +477,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     analysisResult,
     analysisError,
     runDraftAnalysis,
+    applySpec,
+    distributionColumn,
+    setDistributionColumn,
     localOperationsAvailable: localAvailable,
     isMobileNavOpen,
     setMobileNavOpen,

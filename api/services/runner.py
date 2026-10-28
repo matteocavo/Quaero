@@ -251,6 +251,8 @@ def execute_run(
     project: str,
     question: str,
     source_url: str | None,
+    metric_column: str | None = None,
+    dimension_column: str | None = None,
 ) -> None:
     """Execute the pipeline synchronously (called inside a BackgroundTask).
 
@@ -271,10 +273,55 @@ def execute_run(
         if config_path.is_file() and source_url is None:
             from app.pipeline_runner import run_project_from_config
 
-            result = run_project_from_config(
-                config_path=config_path,
-                project_root=project_root,
-            )
+            original_config_text: str | None = None
+            restore_after_run = False
+            try:
+                raw_config_text = config_path.read_text(encoding="utf-8")
+                parsed_config = json.loads(raw_config_text)
+                if isinstance(parsed_config, dict) and parsed_config.get("datasets"):
+                    updated = False
+                    if (
+                        question
+                        and question.strip()
+                        and parsed_config.get("question") != question.strip()
+                    ):
+                        parsed_config["question"] = question.strip()
+                        updated = True
+                    if len(parsed_config["datasets"]) == 1 and isinstance(
+                        parsed_config["datasets"][0], dict
+                    ):
+                        ds0 = parsed_config["datasets"][0]
+                        if metric_column is not None:
+                            if metric_column.strip():
+                                ds0["metric_column"] = metric_column.strip()
+                            else:
+                                ds0.pop("metric_column", None)
+                            updated = True
+                        if dimension_column is not None:
+                            if dimension_column.strip():
+                                ds0["dimension_column"] = dimension_column.strip()
+                            else:
+                                ds0.pop("dimension_column", None)
+                            updated = True
+                    if updated:
+                        original_config_text = raw_config_text
+                        restore_after_run = "upload_id" not in parsed_config
+                        config_path.write_text(
+                            json.dumps(parsed_config, indent=2),
+                            encoding="utf-8",
+                        )
+            except Exception:
+                original_config_text = None
+                restore_after_run = False
+
+            try:
+                result = run_project_from_config(
+                    config_path=config_path,
+                    project_root=project_root,
+                )
+            finally:
+                if restore_after_run and original_config_text is not None:
+                    config_path.write_text(original_config_text, encoding="utf-8")
         elif source_url is not None:
             if _is_ssrf_risk(source_url):
                 raise ValueError(

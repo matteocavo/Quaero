@@ -10,6 +10,7 @@ HTTP layer on top of the Quaero analytics pipeline. Exposes project artifacts an
 # Export required environment variables
 export QUAERO_API_KEY="your-secret-key"           # required — fail-closed if unset
 export QUAERO_PROJECT_ROOT="/path/to/your/data"   # optional — defaults to repo root
+export QUAERO_MAX_UPLOAD_BYTES="10485760"         # optional — max CSV upload size in bytes (default 10 MiB, max 50 MiB)
 export QUAERO_CORS_ORIGINS="http://localhost:3000" # optional — comma-separated
 
 # Start the server
@@ -19,6 +20,10 @@ uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 **PowerShell (Windows):**
 
 ```powershell
+# Recommended one-command local stack launcher (FastAPI + React proxy on 127.0.0.1):
+.\scripts\start-local.ps1
+
+# Or start FastAPI alone:
 $env:QUAERO_API_KEY = "your-secret-key"
 $env:QUAERO_PROJECT_ROOT = "C:\path\to\your\data"
 uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
@@ -54,6 +59,78 @@ Public. No authentication. Returns service status.
 ```json
 { "status": "ok" }
 ```
+
+---
+
+### `POST /uploads`
+Upload a local CSV file (`multipart/form-data`, field name `file`) into the untracked local upload workspace (`<QUAERO_PROJECT_ROOT>/uploads/`). Returns `201 Created` with a safe server-generated `upload_id` and schema/column metadata.
+
+```bash
+curl -X POST -H "X-API-Key: your-secret-key" -F "file=@my_dataset.csv" http://127.0.0.1:8000/uploads
+```
+
+```json
+{
+  "upload_id": "upload_a1b2c3d4e5f6",
+  "original_filename": "my_dataset.csv",
+  "stored_bytes": 1842,
+  "row_count": 48,
+  "column_count": 5,
+  "delimiter": ",",
+  "columns": [
+    {
+      "name": "year",
+      "inferred_type": "numeric",
+      "non_null_count": 48,
+      "null_count": 0,
+      "sample_values": ["2021", "2022", "2023"]
+    }
+  ],
+  "created_at": "2026-10-28T10:00:00+00:00"
+}
+```
+
+**Validation & limits:**
+- Allowed extensions: `.csv`, `.tsv`, `.txt` (filename max 255 chars; path separators `/`, `\`, `..`, `:`, and null bytes are rejected).
+- Size limit: controlled by `QUAERO_MAX_UPLOAD_BYTES` (default `10485760` bytes / 10 MiB, hard upper bound 50 MiB). Oversized uploads return `413 Content Too Large`.
+- Content validation: must be valid UTF-8 RFC 4180 CSV with 2–200 non-empty unique header columns and 1–200,000 data rows. Empty files, binary files, disguised HTML/XML/JSON payloads, header-only files, and ragged rows return `422 Unprocessable Entity`.
+- Storage isolation: the original filename is recorded as metadata only and **never** determines a filesystem path. Files are stored as `<QUAERO_PROJECT_ROOT>/uploads/<upload_id>.csv` + `<upload_id>.json` and are never served statically.
+
+---
+
+### `GET /uploads` and `GET /uploads/{upload_id}`
+List all stored CSV uploads (newest first) or fetch metadata for a single `upload_id` (`^upload_[0-9a-f]{12}$`).
+
+**Errors:** `404` if `upload_id` does not exist; `422` if `upload_id` does not match the identifier pattern.
+
+---
+
+### `POST /projects`
+Create a new local Quaero project from an uploaded CSV dataset (`201 Created`). Writes `projects/<project>/project_config.json` and registers the project in SQLite. Existing projects are preserved (`409 Conflict` if the directory already exists).
+
+```json
+{
+  "project": "logistics_2025",
+  "upload_id": "upload_a1b2c3d4e5f6",
+  "question": "Which carrier generates the highest average freight cost?",
+  "dataset_name": "logistics_2025",
+  "metric_column": "freight_cost",
+  "dimension_column": "carrier",
+  "time_column": "ship_year"
+}
+```
+
+| Field | Required | Constraints |
+|---|---|---|
+| `project` | Yes | Letters, digits, underscores, hyphens; normalized to lowercase `snake_case` |
+| `upload_id` | Yes | Must match an existing `upload_<12hex>` in `uploads/` |
+| `question` | Yes | 1–1000 chars, non-blank analytical objective |
+| `dataset_name` | No | Optional logical dataset alias (defaults to normalized project name) |
+| `metric_column` | No | Optional override; must exist in the uploaded CSV and have `numeric` type |
+| `dimension_column` | No | Optional override; must exist in the uploaded CSV and differ from `metric_column` |
+| `time_column` | No | Optional time column present in the uploaded CSV |
+
+**Errors:** `404` if `upload_id` does not exist; `409` if the project already exists; `422` if column names are invalid or `metric_column` is not numeric.
 
 ---
 
@@ -136,14 +213,18 @@ Trigger an async pipeline run. Returns immediately with `202 Accepted`.
 ```json
 {
   "question": "Which release years have the strongest streams?",
-  "source_url": "https://example.com/data.csv"
+  "source_url": "https://example.com/data.csv",
+  "metric_column": "streams",
+  "dimension_column": "release_year"
 }
 ```
 
 | Field | Required | Constraints |
 |---|---|---|
 | `question` | Yes | 1–1000 chars, non-blank |
-| `source_url` | No | Must resolve to a public IP (SSRF protected) |
+| `source_url` | No | Must resolve to a public IP (SSRF protected); omit for config-backed / upload-backed projects |
+| `metric_column` | No | Optional manual metric column override |
+| `dimension_column` | No | Optional manual dimension column override |
 
 **Response (`202`):**
 
@@ -315,15 +396,90 @@ runs/
 
 ---
 
+### Data lifecycle: `GET /storage`, `POST /storage/policy`, `POST /storage/cleanup`
+
+Three kinds of local data are told apart:
+
+| Kind | What it is | Removed by the lifecycle? |
+|---|---|---|
+| **Temporary upload** | `uploads/upload_<12hex>.csv` + `.json` that no project uses. Each records the `session_id` of the server that created it. | Yes, with confirmation |
+| **Saved upload** | An upload that a project's `project_config.json` refers to (by `upload_id` or by dataset path). Computed from the configs every time, never from a stored flag. | **Never** |
+| **Project / generated artifacts** | `projects/<name>/`. Projects created from an upload can have their *generated files* cleared (`raw/`, `staging/`, `integrated/`, `marts/`, `metadata/`, `ui_inputs/`); `project_config.json` stays. Projects not created from an upload (the bundled demos, hand-written configs) are protected. | Generated files only, with confirmation |
+
+`GET /storage` returns the space used per category, the session id, the policy and the lists of uploads
+(`state`: `current_session`, `orphaned` for an earlier session or an unknown owner, or `saved`) and projects.
+
+`POST /storage/policy` with `{"lifecycle_policy": "ask_on_exit" | "auto_cleanup" | "keep_files"}` (default
+`ask_on_exit`) chooses what the launcher does at exit. It is a POST, not a PUT, so the dev proxy keeps allowing
+only GET and POST.
+
+`POST /storage/cleanup` with `{"scope", "confirm", "target_id"}`:
+
+| `scope` | `target_id` | Deletes |
+|---|---|---|
+| `current_session` | none | this server session's temporary uploads |
+| `orphaned` | none | temporary uploads left by an earlier session or without a recorded owner |
+| `single_upload` | `upload_<12hex>` | one temporary upload (`409` if a project uses it) |
+| `project_artifacts` | a project name | generated files of an upload-created project (`409` if preexisting or a run is in progress) |
+
+Rules enforced by the server (tests in `tests/test_lifecycle.py`):
+
+- `confirm` must be `true`; otherwise `422` and nothing is deleted.
+- The client never sends a path or a file name: only a scope, an id matching `^upload_[0-9a-f]{12}$`, or the
+  name of a project that already exists. Anything else is `404`/`422` and touches nothing.
+- Only regular files named exactly `upload_<12hex>.csv|json` directly inside `uploads/` are removed. Symbolic
+  links, Windows junctions, directories and every other file name are left alone; an upload that has such a file
+  is skipped whole. A linked `uploads/` folder is refused.
+- "This session" is decided by the server from the `session_id` stored in the upload metadata (the launcher sets
+  `QUAERO_SESSION_ID`). A restart after a crash therefore sees the old files as `orphaned` and never deletes them
+  by itself.
+- Whether an upload is still used is checked again immediately before each deletion, under the lock that
+  project creation also takes.
+- A file that cannot be deleted (open in another program on Windows) is reported in `skipped` with its reason;
+  the rest continues. The CSV goes first and the metadata (which records the owner) last, and the metadata is
+  kept if the CSV could not be deleted, so a leftover is still recognised next time.
+
+**At exit.** `scripts/start-local.ps1` sets a session id, runs `python -m api.lifecycle_cli report` at start (it
+prints any orphaned uploads) and `python -m api.lifecycle_cli exit` after stopping the server, which applies the
+policy: `ask_on_exit` lists this session's temporary uploads and asks (with no terminal to ask it keeps them),
+`auto_cleanup` deletes them, `keep_files` keeps them. Closing the console window with the X may not run the exit
+step; nothing is lost, the files are listed at the next start and in the **Local Storage** screen. If you start
+`uvicorn` yourself, no exit step runs.
+
+## Local storage & removing local data
+
+| Path under `<QUAERO_PROJECT_ROOT>` | Contents | Git status |
+|---|---|---|
+| `uploads/<upload_id>.csv` + `.json` | Uploaded CSV files and schema metadata | Untracked (`.gitignore`) |
+| `projects/<project>/` | Project config, raw/staging snapshots, Parquet/SQL marts, DQ/anomaly/lineage metadata | Local projects are untracked unless explicitly committed |
+| `runs/<run_id>.json` | Async run state manifests | Untracked (`.gitignore`) |
+| `quaero.db` | SQLite project, run, and mart registry | Untracked (`.gitignore`) |
+
+To remove a local project and its uploaded dataset:
+
+```powershell
+Remove-Item -Recurse -Force .\projects\<project_name>
+Remove-Item -Force .\uploads\<upload_id>.*
+# Optional: reset local run manifests and SQLite registry
+Remove-Item -Recurse -Force .\runs
+Remove-Item -Force .\quaero.db*
+```
+
+---
+
 ## Security model
 
 | Concern | Mitigation |
 |---|---|
 | API key exposure | `secrets.compare_digest` (timing-safe), fail-closed (503) when env var unset |
-| Path traversal | Project and mart names validated against `[a-zA-Z0-9_-]` allowlist; `.resolve()` + `is_relative_to()` boundary check |
+| Path traversal | Project, mart, and upload identifiers validated against strict allowlists; `.resolve()` + `is_relative_to()` boundary checks |
+| Untrusted upload filenames | Original filename is validated and stored as metadata only; disk path is always `<project_root>/uploads/upload_<12hex>.csv` |
+| CSV upload validation | Size cap (`QUAERO_MAX_UPLOAD_BYTES`, default 10 MiB), UTF-8 + RFC 4180 structure check, rejection of empty/binary/HTML/XML/JSON/header-only/ragged files |
+| Project overwrite protection | `POST /projects` returns `409 Conflict` if `projects/<project>/` already exists |
 | SSRF | `source_url` hostname resolved via DNS; IP checked against RFC-1918, loopback, and link-local blocklist |
 | CORS | Origins from `QUAERO_CORS_ORIGINS` env var; `allow_credentials=False` |
 | Error leakage | Global exception handler returns `500` without traceback |
+| Limitations | Designed for single-user local operation on loopback (`127.0.0.1`) with a single shared secret (`QUAERO_API_KEY`); no multi-tenant isolation or per-user RBAC |
 
 ---
 

@@ -40,9 +40,10 @@ export function summarizeDataset(dataset: Dataset, profile: DatasetProfile): Dat
 
   const columnSummaries = dataset.columns.map((column): ColumnSummary => {
     kindCounts[column.kind] += 1;
-    missingCells += column.nullCount + column.invalidCount;
+    // nullCount already includes the unreadable values (they are read as missing), so do not add them again.
+    missingCells += column.nullCount;
     unreadable += column.invalidCount;
-    const missing = column.nullCount + column.invalidCount;
+    const missing = column.nullCount;
     const summary: ColumnSummary = {
       name: column.name,
       kind: column.kind,

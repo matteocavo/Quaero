@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { usableAsMetric } from '../../analysis/advisor';
 import { MAX_DIMENSIONS, MAX_MEASURES, MAX_RESULT_ROWS } from '../../analysis/limits';
 import { dimensionKey, measureKey, specToSentence, validateSpec } from '../../analysis/query';
 import type {
@@ -12,6 +13,7 @@ import type {
   Measure,
 } from '../../analysis/types';
 import { useApp } from '../../context/AppContext';
+import { Suggestions } from './Suggestions';
 import { Card, Field, Notice, inputClass, primaryButton, secondaryButton } from './ui';
 
 const FUNCTIONS: { fn: AggregateFn; label: string }[] = [
@@ -58,8 +60,8 @@ function pickGroupColumn(dataset: Dataset): DatasetColumn | undefined {
 
 function pickMetric(dataset: Dataset): DatasetColumn | undefined {
   const numeric = dataset.columns.filter((c) => c.kind === 'numeric');
-  // Skip identifier-like columns (a different value in every row) when there is a better choice.
-  return numeric.find((c) => c.distinctCount < dataset.rows.length) ?? numeric[0];
+  // Prefer a column that varies and is mostly filled: not constant (all zeros), mostly empty, or a key.
+  return numeric.find((c) => usableAsMetric(dataset, c)) ?? numeric.find((c) => c.distinctCount < dataset.rows.length) ?? numeric[0];
 }
 
 function pickBin(column: DatasetColumn): DateBin {
@@ -171,6 +173,8 @@ export const BuildTab: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <Suggestions />
+
       <Notice>
         Quaero Web does not interpret free-text questions in the browser. Build the question from the columns of
         your file: pick a pattern or choose the grouping, the calculation and the order yourself.

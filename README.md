@@ -21,6 +21,25 @@ source to mart table, every transformation is logged and every column is scored.
 
 Dataset → Question → Analytical Marts → Dashboard
 
+## What's new in v0.8.0 (Unreleased)
+
+v0.8.0 - *Local Operations & Web App* - completes the local React + FastAPI + Python pipeline
+application while keeping the public GitHub Pages demo 100% browser-only. See [CHANGELOG.md](CHANGELOG.md),
+[frontend/README.md](frontend/README.md) and [api/README.md](api/README.md).
+
+- **End-to-end Local Operations workflow** (`Import → Configure → Run → Results`): upload a local CSV
+  to FastAPI (`POST /uploads`), create a config-backed project (`POST /projects`), configure an
+  analytical question and optional metric/dimension overrides, launch the real Python pipeline
+  (`POST /projects/{project}/run`), monitor run status, explore Parquet marts, inspect Data Quality and
+  Anomaly Framing v2, view column-level lineage, and download JSON/CSV results
+- **Secure local CSV storage** (`api/services/uploads.py`): strict RFC 4180 content validation,
+  configurable byte limits (`QUAERO_MAX_UPLOAD_BYTES`, default 10 MiB), random `upload_<12hex>` IDs, and
+  storage inside an untracked `<project_root>/uploads/` folder (never publicly served)
+- **One-command Windows launcher** (`scripts/start-local.ps1`): starts FastAPI and the React dev proxy on
+  `127.0.0.1` only with ephemeral session-key generation and automatic process cleanup
+- **Public Demo & Browser Workspace**: zero-backend interactive mode for GitHub Pages with in-browser
+  CSV profiling, filtering, group-by query builder, charts, and exports
+
 ## What's new in v0.6.0
 
 v0.6.0 - *Operations Console* - adds a local Streamlit console for operating Quaero through the
@@ -502,14 +521,34 @@ streamlit run console/app.py                           # terminal 2 (same QUAERO
 
 See [console/README.md](console/README.md) for the screens, configuration and limitations.
 
-## Web app
+## Web app (Public Demo & Local Operations)
 
-`frontend/` is a React + TypeScript web app (Vite) with two modes:
+`frontend/` is a React 19 + TypeScript web app (Vite) with two distinct operating modes:
 
-- **Public Demo** (default): bundled demo fixtures and in-browser CSV profiling. It makes no network
-  requests and is the only part intended for static hosting (GitHub Pages).
-- **Local Operations**: talks to your local Quaero API through a same-origin dev proxy that adds the API
-  key from the server's environment, so the key never reaches the browser.
+| Feature | Public Demo (Default) | Local Operations |
+|---|---|---|
+| **Backend required** | No (100% browser-only) | Yes (local FastAPI + Python pipeline + SQLite) |
+| **Network activity** | Zero `/api` requests | Loopback (`127.0.0.1`) same-origin proxy only |
+| **CSV analysis** | In-browser profiler & Browser Workspace (`tab memory only`) | Server upload (`POST /uploads`) → Project creation (`POST /projects`) → Real Python pipeline (`POST /projects/{project}/run`) |
+| **Generated outputs** | In-browser charts & CSV/JSON table exports | Parquet & SQL marts, Data Quality (`dq_score`), Anomaly Framing v2, Lineage DAG (`lineage.json`), Power BI schema, `metrics.yml` |
+| **Persistence** | None (cleared on page reload) | `<repo_root>/uploads/`, `projects/<project>/`, `runs/`, `quaero.db` |
+
+### Local installation & how to launch Quaero (Windows)
+
+```powershell
+# 1. Install Python & frontend dependencies (once)
+python -m venv .venv
+.\.venv\Scripts\pip install -r requirements.txt
+npm --prefix frontend ci
+
+# 2. Launch FastAPI (127.0.0.1:8000) + React dev proxy (127.0.0.1:3000) in one command
+.\scripts\start-local.ps1
+# (or: npm --prefix frontend run start:local)
+```
+
+`.\scripts\start-local.ps1` binds both servers strictly to `127.0.0.1` (never LAN), generates an ephemeral 256-bit `QUAERO_API_KEY` for the session if none is set in your environment, verifies `/health` and proxy readiness, and terminates both processes cleanly on `Ctrl+C`.
+
+You can also start the two servers manually in separate terminals:
 
 ```bash
 export QUAERO_API_KEY="your-secret-key"
@@ -517,7 +556,39 @@ uvicorn api.main:app --host 127.0.0.1 --port 8000     # terminal 1
 cd frontend && npm ci && npm run dev                  # terminal 2 -> http://127.0.0.1:3000
 ```
 
-See [frontend/README.md](frontend/README.md) for modes, security, tests and the GitHub Pages setup.
+Once `http://127.0.0.1:3000` opens, click the mode button in the top header, select **Local Operations**, and open **Import & Profile Data** (or **Pipeline Operations**) to run the `Import → Configure → Run → Results` workflow.
+
+### Local Storage: temporary uploads, saved projects and cleanup
+
+In Local Operations mode the **Local Storage** screen shows the space used by temporary uploads, uploads that a
+project keeps, project settings and generated files. Uploads are **temporary** until a project uses them; an
+upload used by a project is never deleted by the cleanup. Choose what happens when Quaero closes: **Ask on exit**
+(default), **Auto cleanup** (this session's temporary uploads only) or **Keep files**. After a crash the
+leftovers of the earlier session are listed, never deleted automatically. Every permanent deletion asks for
+explicit confirmation and lists exactly what will go. Details and rules: `api/README.md`.
+
+### Where uploaded files are stored & how to remove local project data
+
+- **Uploaded CSV files**: stored in `<repo_root>/uploads/upload_<12hex>.csv` with schema metadata in `<repo_root>/uploads/upload_<12hex>.json`. The original filename is never used as a filesystem path, and `uploads/` is untracked (`.gitignore`) and never publicly served.
+- **Created local projects**: stored in `<repo_root>/projects/<project_name>/` (`project_config.json`, `raw/`, `staging/`, `marts/`, `metadata/`, `metrics/`).
+- **Run state & SQLite registry**: stored in `<repo_root>/runs/` and `<repo_root>/quaero.db`.
+
+To remove a local project and its uploaded dataset:
+
+```powershell
+Remove-Item -Recurse -Force .\projects\<project_name>
+Remove-Item -Force .\uploads\<upload_id>.*
+# Optional: reset all local run manifests and SQLite state
+Remove-Item -Recurse -Force .\runs
+Remove-Item -Force .\quaero.db*
+```
+
+### Security limitations
+
+- **Single-user loopback design**: Local Operations is designed for a single user on `127.0.0.1`. The Vite dev/preview proxy attaches `QUAERO_API_KEY` from the server environment to allowlisted `/api/*` requests so the key never enters browser code, which means the dev server itself must never be bound to `0.0.0.0` or exposed on an untrusted network.
+- **Manual data retention**: Uploaded CSVs in `uploads/` and generated project artifacts in `projects/` remain on disk until you delete them; there is no automatic TTL cleanup or multi-tenant quota enforcement.
+
+See [frontend/README.md](frontend/README.md) and [api/README.md](api/README.md) for full details on modes, proxy policy, tests and the GitHub Pages setup.
 
 ## Testing
 

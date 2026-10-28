@@ -10,6 +10,7 @@ pydantic
 fastapi
 uvicorn[standard]
 httpx
+python-multipart
 
 # Forward-looking dependencies kept for future query/performance work
 polars

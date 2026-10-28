@@ -15,6 +15,7 @@ import {
   PlayCircle,
 } from 'lucide-react';
 import { checkFileSize, checkParsedSize } from '../analysis/limits';
+import { LocalPipelineWizard } from '../components/LocalPipelineWizard';
 import { useApp } from '../context/AppContext';
 import { toCsv } from '../utils/csv';
 import { downloadTextFile, fileStem } from '../utils/download';
@@ -22,6 +23,7 @@ import { parseCSV, DatasetProfile, ColumnProfile } from '../utils/csvProfiler';
 
 export const DataImportView: React.FC = () => {
   const {
+    mode,
     activeDatasetProfile,
     loadDatasetProfile,
     loadSampleDataset,
@@ -144,6 +146,14 @@ export const DataImportView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {mode === 'live' && (
+        <LocalPipelineWizard
+          onProjectCreated={() => {
+            setActiveTab('operations');
+          }}
+        />
+      )}
+
       {/* Header Bar */}
       <div className="flex flex-col justify-between space-y-3 sm:flex-row sm:items-center sm:space-y-0">
         <div>
