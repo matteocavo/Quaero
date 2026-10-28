@@ -29,6 +29,7 @@ describe('Public Demo mode', () => {
     await client.getProjectOverview(name);
     await client.listMarts(name);
     await client.getRunHistory(name);
+    await client.getRunStatus(name, 'run-8f3a12bc-e179');
     await client.getDataQuality(name);
     await client.getAnomalies(name);
     await client.getLineage(name);
@@ -46,6 +47,55 @@ describe('Public Demo mode', () => {
   it('serves demo fixtures only for known projects', async () => {
     const client = new QuaeroApiClient('demo');
     await expect(client.getProjectOverview('ghost')).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('Public Demo run status', () => {
+  it('reports the fixture status of a run shown in the demo history', async () => {
+    const client = new QuaeroApiClient('demo');
+    const history = await client.getRunHistory('release_impact');
+    for (const run of history.runs) {
+      const status = await client.getRunStatus('release_impact', run.run_id);
+      expect(status.run_id).toBe(run.run_id);
+      expect(status.project).toBe('release_impact');
+      expect(status.status).toBe(run.status);
+      expect(status.error ?? null).toBe(run.error ?? null);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps a failed demo run failed, with its error', async () => {
+    const status = await new QuaeroApiClient('demo').getRunStatus('release_impact', 'run-4c1d22aa-a332');
+    expect(status.status).toBe('FAILED');
+    expect(status.error).toContain('Network timeout');
+  });
+
+  it('never fabricates a status for a run that is not in the fixtures', async () => {
+    const client = new QuaeroApiClient('demo');
+    await expect(client.getRunStatus('release_impact', 'run-does-not-exist')).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(client.getRunStatus('unknown_project', 'run-8f3a12bc-e179')).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    // a real run id of another project is not valid for this one
+    await expect(
+      client.getRunStatus('global_economic_indicators', 'run-8f3a12bc-e179'),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('does not invent result keys for demo runs', async () => {
+    const status = await new QuaeroApiClient('demo').getRunStatus('release_impact', 'run-8f3a12bc-e179');
+    expect(status.result_keys).toEqual([]);
+  });
+
+  it('stays consistent with the run history shown in the interface', async () => {
+    const client = new QuaeroApiClient('demo');
+    const { runs } = await client.getRunHistory('global_economic_indicators');
+    const statuses = await Promise.all(
+      runs.map((run) => client.getRunStatus('global_economic_indicators', run.run_id)),
+    );
+    expect(statuses.map((s) => s.status)).toEqual(runs.map((r) => r.status));
   });
 });
 

@@ -190,11 +190,21 @@ export class QuaeroApiClient {
 
   public async getRunStatus(project: string, runId: string): Promise<RunStatusResponse> {
     if (this.mode === 'demo') {
+      // Public Demo executes nothing: report only the runs shown in the demo history, with the
+      // status stored in the fixture. Never invent a status or result for an unknown run.
+      const item = DEMO_RUN_HISTORY[project]?.runs.find((run) => run.run_id === runId);
+      if (!item) {
+        throw new ApiError(
+          `Run '${runId}' is not part of the demo fixtures. Public Demo does not execute pipelines.`,
+          404,
+        );
+      }
       return {
-        run_id: runId,
-        project,
-        status: 'COMPLETED',
-        result_keys: ['mart_paths', 'cleaning_metadata_path'],
+        run_id: item.run_id,
+        project: item.project,
+        status: item.status,
+        error: item.error ?? null,
+        result_keys: [],
       };
     }
     return this.request<RunStatusResponse>(
