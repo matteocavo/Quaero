@@ -13,6 +13,7 @@ import {
   LineageResponse,
   AppMode,
 } from '../types/api';
+import { LOCAL_UNAVAILABLE_MESSAGE, localOperationsAvailable } from '../utils/runtime';
 import {
   DEMO_PROJECTS,
   DEMO_OVERVIEWS,
@@ -57,6 +58,10 @@ export class QuaeroApiClient {
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     if (this.mode === 'demo') {
       throw new ApiError('Cannot make live network requests in demo mode', 400);
+    }
+    // Defence in depth: on a static host there is no API, so never attempt a request.
+    if (!localOperationsAvailable()) {
+      throw new ApiError(LOCAL_UNAVAILABLE_MESSAGE, 400);
     }
 
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
@@ -163,15 +168,11 @@ export class QuaeroApiClient {
       if (projectMarts && projectMarts[mart]) {
         return projectMarts[mart];
       }
-      return {
-        project,
-        mart,
-        columns: ['id', 'metric_name', 'metric_value', 'created_at'],
-        rows: [],
-        total_rows: 0,
-        page,
-        page_size: pageSize,
-      };
+      // No placeholder columns or rows: say plainly that this demo mart has no bundled preview.
+      throw new ApiError(
+        `No preview is bundled for '${mart}' in the public demo. Run Quaero locally to browse the real mart.`,
+        404,
+      );
     }
     return this.request<MartPreviewResponse>(
       `/projects/${encodeURIComponent(project)}/marts/${encodeURIComponent(mart)}?page=${page}&page_size=${pageSize}`,

@@ -49,10 +49,10 @@ jobs:
       - name: Test
         run: npm test
 
+      # Builds with VITE_BASE_PATH=/Quaero/ and VITE_DEMO_ONLY=true (see scripts/build-pages.mjs).
       - name: Build for GitHub Pages
-        run: npm run build
+        run: npm run build:pages
         env:
-          VITE_BASE_PATH: /Quaero/
           # Sentinel: proves the bundle check would catch a key leaking into the build.
           QUAERO_API_KEY: ci-sentinel-not-a-real-key
 
@@ -60,6 +60,9 @@ jobs:
         run: npm run check:bundle
         env:
           QUAERO_API_KEY: ci-sentinel-not-a-real-key
+
+      - name: Test the built site in a real browser (Chrome)
+        run: npm run test:e2e
 
       - name: Upload Pages artifact
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'

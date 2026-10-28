@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Menu,
   Moon,
   Sun,
   Server,
@@ -22,12 +23,23 @@ export const Header: React.FC = () => {
     toggleTheme,
     connectionStatus,
     setIsConnectionModalOpen,
+    isMobileNavOpen,
+    setMobileNavOpen,
   } = useApp();
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 sm:px-6">
       {/* Brand & Project Selector */}
-      <div className="flex items-center space-x-3 sm:space-x-6">
+      <div className="flex min-w-0 items-center space-x-2 sm:space-x-6">
+        <button
+          type="button"
+          aria-label="Open navigation menu"
+          aria-expanded={isMobileNavOpen}
+          onClick={() => setMobileNavOpen(!isMobileNavOpen)}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-slate-100 text-slate-800 md:hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
         <div className="flex items-center space-x-2.5">
           {/* Modern vector logo mark replacing the 90s emoji */}
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-sky-500 via-sky-600 to-indigo-600 text-white shadow-xs ring-1 ring-sky-400/30">
@@ -45,7 +57,7 @@ export const Header: React.FC = () => {
               <circle cx="11" cy="11" r="2.5" fill="currentColor" fillOpacity="0.4" />
             </svg>
           </div>
-          <div>
+          <div className="hidden sm:block">
             <div className="flex items-center space-x-2">
               <span className="text-base font-extrabold tracking-tight text-slate-900 dark:text-white">
                 Quaero
@@ -61,7 +73,7 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Project Selector */}
-        <div className="relative">
+        <div className="relative hidden md:block">
           <label htmlFor="project-select" className="sr-only">
             Select Active Project
           </label>
@@ -85,7 +97,7 @@ export const Header: React.FC = () => {
       </div>
 
       {/* Actions & Status */}
-      <div className="flex items-center space-x-2 sm:space-x-3">
+      <div className="flex shrink-0 items-center space-x-2 sm:space-x-3">
         {/* Operating Mode Pill */}
         <button
           onClick={() => setIsConnectionModalOpen(true)}
@@ -102,7 +114,8 @@ export const Header: React.FC = () => {
           {mode === 'demo' ? (
             <>
               <Sparkles className="h-3 w-3 text-amber-700 dark:text-amber-400" />
-              <span>Public Demo Sandbox</span>
+              <span className="hidden sm:inline">Public Demo Sandbox</span>
+              <span className="sm:hidden">Demo</span>
             </>
           ) : connectionStatus === 'connected' ? (
             <>
@@ -132,7 +145,7 @@ export const Header: React.FC = () => {
           href="https://github.com/matteocavo/Quaero"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-300 bg-slate-100 text-slate-800 shadow-2xs hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          className="hidden h-9 w-9 items-center justify-center sm:flex rounded-xl border border-slate-300 bg-slate-100 text-slate-800 shadow-2xs hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           title="View source on GitHub (MIT License)"
         >
           <Github className="h-4 w-4" />

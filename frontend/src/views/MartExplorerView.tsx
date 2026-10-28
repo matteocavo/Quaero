@@ -11,6 +11,8 @@ import {
   Columns,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { toCsv } from '../utils/csv';
+import { downloadTextFile } from '../utils/download';
 import { MartInfo, MartPreviewResponse } from '../types/api';
 
 export const MartExplorerView: React.FC = () => {
@@ -22,6 +24,7 @@ export const MartExplorerView: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [preview, setPreview] = useState<MartPreviewResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [previewNote, setPreviewNote] = useState<string | null>(null);
   const [filterText, setFilterText] = useState<string>('');
 
   // 1. Fetch marts list
@@ -65,9 +68,17 @@ export const MartExplorerView: React.FC = () => {
         );
         if (isMounted) {
           setPreview(data);
+          setPreviewNote(null);
         }
       } catch (err: any) {
-        showFlash(`Could not load mart preview: ${err.message}`, 'error');
+        if (isMounted) {
+          // Never keep showing the previous mart's rows under a different mart's name.
+          setPreview(null);
+          setPreviewNote(err.message);
+        }
+        if (err?.statusCode !== 404) {
+          showFlash(`Could not load mart preview: ${err.message}`, 'error');
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -95,20 +106,11 @@ export const MartExplorerView: React.FC = () => {
   const handleDownloadCsv = () => {
     if (!preview || filteredRows.length === 0) return;
 
-    const cols = preview.columns;
-    const csvLines = [
-      cols.join(','),
-      ...filteredRows.map((r) =>
-        cols.map((col) => JSON.stringify(r[col] ?? '')).join(','),
-      ),
-    ];
-    const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${selectedProject}_${selectedMart}_page${page}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadTextFile(
+      `${selectedProject}_${selectedMart}_page${page}.csv`,
+      toCsv(preview.columns, filteredRows),
+      'text/csv;charset=utf-8;',
+    );
   };
 
   const totalPages = preview ? Math.max(1, Math.ceil(preview.total_rows / pageSize)) : 1;
@@ -238,7 +240,7 @@ export const MartExplorerView: React.FC = () => {
             </div>
           ) : !preview || filteredRows.length === 0 ? (
             <div className="flex h-64 items-center justify-center text-xs text-slate-500">
-              No matching records found on this page.
+              {!preview && previewNote ? previewNote : 'No matching records found on this page.'}
             </div>
           ) : (
             <table className="w-full text-left text-xs">

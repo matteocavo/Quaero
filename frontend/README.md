@@ -39,6 +39,15 @@ cd frontend; npm ci; npm run dev
 
 Open the app, click the mode pill in the header and choose **Local Operations**.
 
+## Public site (GitHub Pages) behaviour
+
+The deployed site is static: no proxy, no API. The Pages build sets `VITE_DEMO_ONLY=true` and
+`VITE_BASE_PATH=/Quaero/` (`npm run build:pages`). There Local Operations is **unavailable**: the option
+is disabled with an explanation and the app never sends an `/api` request. Local Operations is also
+disabled on any host that is not `localhost`, `127.0.0.1` or `[::1]`.
+
+On phones the navigation is a slide-over menu (button in the header).
+
 ## Security model
 
 - The browser calls only `/api/...` on the dev server. The proxy (`vite.config.ts` +
@@ -57,6 +66,9 @@ Open the app, click the mode pill in the header and choose **Local Operations**.
 
 ```bash
 npm run typecheck
+npm run build:pages      # the static public build (base /Quaero/, demo only)
+npm run test:e2e         # real Chrome against that build: assets, console, every screen, phone layout,
+                         # CSV round trip, no API requests; needs Chrome installed
 npm test                 # 88 tests: proxy policy, API client, CSV profiler, UI interactions,
                          # and a real Vite proxy in front of a fake backend
 npm run build

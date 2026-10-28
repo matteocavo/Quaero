@@ -139,6 +139,7 @@ enumerated.
 | vite, @vitejs/plugin-react | MIT | build and dev server |
 | typescript | Apache-2.0 | type checking |
 | vitest, jsdom, @testing-library/* | MIT | tests |
+| @playwright/test (playwright, playwright-core) | Apache-2.0 | real-browser tests (uses the installed Chrome; no browser is downloaded or shipped) |
 
 Build-time tooling includes `lightningcss` (MPL-2.0) and `caniuse-lite` data (CC BY 4.0); neither is
 shipped in the bundle. The app loads no web fonts or other third-party resources: it uses the

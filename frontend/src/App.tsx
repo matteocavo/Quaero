@@ -22,6 +22,8 @@ const AppContent: React.FC = () => {
     setMode,
     connectionStatus,
     setIsConnectionModalOpen,
+    isMobileNavOpen,
+    setMobileNavOpen,
   } = useApp();
 
   return (
@@ -31,11 +33,18 @@ const AppContent: React.FC = () => {
 
       {/* Main Body */}
       <div className="flex flex-1">
-        {/* Persistent Sidebar */}
+        {/* Persistent Sidebar (a slide-over menu on small screens) */}
+        {isMobileNavOpen && (
+          <div
+            aria-hidden="true"
+            onClick={() => setMobileNavOpen(false)}
+            className="fixed inset-0 top-16 z-30 bg-slate-900/40 md:hidden"
+          />
+        )}
         <Sidebar />
 
         {/* Dynamic Main View Area */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8">
           {/* Offline Recovery Banner in Live Mode */}
           {mode === 'live' && connectionStatus === 'disconnected' && (
             <div className="mb-6 flex flex-col justify-between space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 sm:flex-row sm:items-center sm:space-y-0">

@@ -50,6 +50,53 @@ describe('Public Demo mode', () => {
   });
 });
 
+describe('Public Demo mart previews', () => {
+  it('serves a bundled preview', async () => {
+    const preview = await new QuaeroApiClient('demo').getMartPreview('release_impact', 'mart_release_impact');
+    expect(preview.rows.length).toBeGreaterThan(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('says plainly when no preview is bundled instead of inventing columns or rows', async () => {
+    const client = new QuaeroApiClient('demo');
+    const marts = await client.listMarts('release_impact');
+    const missing: string[] = [];
+    for (const mart of marts.marts) {
+      try {
+        await client.getMartPreview('release_impact', mart.name);
+      } catch (err) {
+        expect(err).toBeInstanceOf(ApiError);
+        expect((err as ApiError).statusCode).toBe(404);
+        expect((err as ApiError).message).toContain('No preview is bundled');
+        missing.push(mart.name);
+      }
+    }
+    expect(missing.length).toBeGreaterThan(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('Static public host (GitHub Pages)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('never attempts a request in live mode when the build is demo-only', async () => {
+    vi.stubEnv('VITE_DEMO_ONLY', 'true');
+    const client = new QuaeroApiClient('live');
+    await expect(client.checkHealth()).rejects.toMatchObject({ statusCode: 400 });
+    await expect(client.listProjects()).rejects.toThrow('not available on this public site');
+    await expect(client.startRun('p', 'q?')).rejects.toBeInstanceOf(ApiError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('still works in demo mode', async () => {
+    vi.stubEnv('VITE_DEMO_ONLY', 'true');
+    const projects = await new QuaeroApiClient('demo').listProjects();
+    expect(projects.projects.length).toBeGreaterThan(0);
+  });
+});
+
 describe('Public Demo run status', () => {
   it('reports the fixture status of a run shown in the demo history', async () => {
     const client = new QuaeroApiClient('demo');
