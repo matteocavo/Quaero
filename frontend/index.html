@@ -9,6 +9,20 @@
     <meta property="og:title" content="Quaero Web" />
     <meta property="og:description" content="Enterprise-grade web operations console and analytics platform for Quaero data pipelines, data quality validation, anomaly framing, mart exploration, and interactive lineage." />
     <meta property="og:type" content="website" />
+    <meta name="color-scheme" content="dark light" />
+    <script>
+      // Apply the theme before the first paint so the page never flashes the wrong one. Same rules as
+      // src/utils/theme.ts: dark unless the stored choice is light, or system and the device prefers light.
+      (function () {
+        try {
+          var choice = window.localStorage.getItem('quaero_theme_preference');
+          var dark = choice === 'light' ? false : choice === 'system' ? window.matchMedia('(prefers-color-scheme: dark)').matches : true;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (error) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased selection:bg-sky-500/20 selection:text-sky-700 dark:bg-slate-950 dark:text-slate-100 dark:selection:bg-sky-500/30 dark:selection:text-sky-300">
     <div id="root"></div>
