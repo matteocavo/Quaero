@@ -12,11 +12,17 @@ import { OperationsView } from './views/OperationsView';
 import { MartExplorerView } from './views/MartExplorerView';
 import { QualityView } from './views/QualityView';
 import { LineageView } from './views/LineageView';
+import { WorkspaceOverview } from './views/workspace/WorkspaceOverview';
+import { WorkspaceExplorer } from './views/workspace/WorkspaceExplorer';
+import { BrowserWorkspaceUnavailable } from './views/workspace/Unavailable';
 import { X, CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const AppContent: React.FC = () => {
   const {
     activeTab,
+    setActiveTab,
+    setWorkspaceTab,
+    browserWorkspaceActive,
     flashMessage,
     clearFlash,
     mode,
@@ -105,12 +111,30 @@ const AppContent: React.FC = () => {
           {activeTab === 'home' && <HomeView />}
           {activeTab === 'import' && <DataImportView />}
           {activeTab === 'analyze' && <AnalysisWorkspace />}
-          {activeTab === 'overview' && <OverviewView />}
-          {activeTab === 'explorer' && <ProjectExplorerView />}
-          {activeTab === 'operations' && <OperationsView />}
-          {activeTab === 'marts' && <MartExplorerView />}
-          {activeTab === 'quality' && <QualityView />}
-          {activeTab === 'lineage' && <LineageView />}
+          {/* While the Browser Workspace is active, project-only screens are replaced, never fed demo data. */}
+          {activeTab === 'overview' && (browserWorkspaceActive ? <WorkspaceOverview /> : <OverviewView />)}
+          {activeTab === 'explorer' && (browserWorkspaceActive ? <WorkspaceExplorer /> : <ProjectExplorerView />)}
+          {activeTab === 'operations' &&
+            (browserWorkspaceActive ? <BrowserWorkspaceUnavailable screen="Pipeline Operations" /> : <OperationsView />)}
+          {activeTab === 'marts' &&
+            (browserWorkspaceActive ? <BrowserWorkspaceUnavailable screen="Mart Explorer" /> : <MartExplorerView />)}
+          {activeTab === 'quality' &&
+            (browserWorkspaceActive ? (
+              <BrowserWorkspaceUnavailable
+                screen="Quality & Anomalies"
+                alternative={{
+                  label: 'Open Data Quality for this dataset',
+                  open: () => {
+                    setWorkspaceTab('quality');
+                    setActiveTab('analyze');
+                  },
+                }}
+              />
+            ) : (
+              <QualityView />
+            ))}
+          {activeTab === 'lineage' &&
+            (browserWorkspaceActive ? <BrowserWorkspaceUnavailable screen="Data Lineage DAG" /> : <LineageView />)}
         </main>
       </div>
 

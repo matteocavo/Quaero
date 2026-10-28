@@ -7,7 +7,7 @@ import {
 } from '../types/api';
 import { QuaeroApiClient, ApiError } from '../services/apiClient';
 import { buildDataset } from '../analysis/dataset';
-import { AnalysisError, runAnalysis, validateSpec } from '../analysis/query';
+import { AnalysisError, runAnalysis, specToSentence, validateSpec } from '../analysis/query';
 import type { AnalysisResult, AnalysisSpec, Dataset, DatasetOrigin } from '../analysis/types';
 import { LOCAL_UNAVAILABLE_MESSAGE, localOperationsAvailable } from '../utils/runtime';
 import {
@@ -21,7 +21,16 @@ interface AppContextType {
   mode: AppMode;
   setMode: (mode: AppMode) => void;
   selectedProject: string;
+  /** Choose a demo/Local project. Leaves the Browser Workspace, which stays loaded in memory. */
   setSelectedProject: (project: string) => void;
+  /** True while the dataset loaded in this tab is the active context instead of a project. */
+  browserWorkspaceActive: boolean;
+  /** Value of the global selector: a project name or BROWSER_WORKSPACE_ID. */
+  selectorValue: string;
+  selectWorkspace: (value: string) => void;
+  /** Forget the dataset, its filters and analyses, and return to the last selected project. */
+  clearDataset: () => void;
+  analysisHistory: AnalysisRun[];
   activeTab: NavigationTab;
   setActiveTab: (tab: NavigationTab) => void;
   projects: ProjectSummary[];
@@ -56,6 +65,19 @@ interface AppContextType {
   isMobileNavOpen: boolean;
   setMobileNavOpen: (open: boolean) => void;
 }
+
+/** One analysis the user ran on the loaded dataset (kept in memory only). */
+export interface AnalysisRun {
+  id: number;
+  spec: AnalysisSpec;
+  sentence: string;
+  inputRows: number;
+  filteredRows: number;
+  groups: number;
+}
+
+/** Option value of the Browser Workspace in the global selector; never a valid project name. */
+export const BROWSER_WORKSPACE_ID = '__browser_workspace__';
 
 export type WorkspaceTab = 'preview' | 'quality' | 'explore' | 'build' | 'results' | 'export';
 
@@ -93,8 +115,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [mode, setModeState] = useState<AppMode>('demo');
 
   // Default to 'home'
-  const [activeTab, setActiveTab] = useState<NavigationTab>('home');
-  const [selectedProject, setSelectedProject] = useState<string>('release_impact');
+  const [activeTab, setActiveTabRaw] = useState<NavigationTab>('home');
+  const [selectedProject, setSelectedProjectRaw] = useState<string>('release_impact');
+  const [browserWorkspaceActive, setBrowserWorkspaceActive] = useState<boolean>(false);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [currentOverview, setCurrentOverview] = useState<ProjectOverviewResponse | null>(null);
   const [loadingOverview, setLoadingOverview] = useState<boolean>(false);
@@ -113,6 +136,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [appliedSpec, setAppliedSpec] = useState<AnalysisSpec | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisHistory, setAnalysisHistory] = useState<AnalysisRun[]>([]);
 
   // Typed rows for the analysis, rebuilt only when a different dataset is loaded.
   const activeDataset = useMemo<Dataset | null>(
@@ -128,8 +152,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAppliedSpec(null);
     setAnalysisResult(null);
     setAnalysisError(null);
+    setAnalysisHistory([]);
     setWorkspaceTab('preview');
+    // A new dataset becomes the active context straight away.
+    setBrowserWorkspaceActive(true);
   }, []);
+
+  const clearDataset = useCallback(() => {
+    setActiveDatasetProfile(null);
+    setDraftSpec(EMPTY_SPEC);
+    setAppliedSpec(null);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setAnalysisHistory([]);
+    setWorkspaceTab('preview');
+    setBrowserWorkspaceActive(false);
+  }, []);
+
+  const setSelectedProject = useCallback((project: string) => {
+    setSelectedProjectRaw(project);
+    setBrowserWorkspaceActive(false);
+    // A notice about the previous context must not stay on top of the new one.
+    setFlashMessage(null);
+    // The analysis screen belongs to the Browser Workspace; do not leave it open on a project.
+    setActiveTabRaw((tab) => (tab === 'analyze' ? 'overview' : tab));
+  }, []);
+
+  const setActiveTab = useCallback(
+    (tab: NavigationTab) => {
+      // Opening the analysis of the loaded dataset makes it the active context.
+      if (tab === 'analyze' && activeDatasetProfile) setBrowserWorkspaceActive(true);
+      setActiveTabRaw(tab);
+    },
+    [activeDatasetProfile],
+  );
+
+  const selectWorkspace = useCallback(
+    (value: string) => {
+      if (value === BROWSER_WORKSPACE_ID) {
+        if (activeDatasetProfile) {
+          setBrowserWorkspaceActive(true);
+          setFlashMessage(null);
+        }
+        return;
+      }
+      setSelectedProject(value);
+    },
+    [activeDatasetProfile, setSelectedProject],
+  );
 
   const runDraftAnalysis = useCallback((): boolean => {
     if (!activeDataset) return false;
@@ -142,6 +212,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const result = runAnalysis(activeDataset, draftSpec);
       setAppliedSpec(draftSpec);
       setAnalysisResult(result);
+      setAnalysisHistory((previous) =>
+        [
+          ...previous,
+          {
+            id: (previous[previous.length - 1]?.id ?? 0) + 1,
+            spec: draftSpec,
+            sentence: specToSentence(draftSpec),
+            inputRows: result.inputRows,
+            filteredRows: result.filteredRows,
+            groups: result.totalGroups,
+          },
+        ].slice(-10),
+      );
       setAnalysisError(null);
       return true;
     } catch (err) {
@@ -227,7 +310,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await apiClient.listProjects();
       setProjects(res.projects);
       if (res.projects.length > 0 && !res.projects.some((p) => p.project === selectedProject)) {
-        setSelectedProject(res.projects[0].project);
+        setSelectedProjectRaw(res.projects[0].project);
       }
     } catch (err: any) {
       setProjects([]);
@@ -283,10 +366,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMode,
     selectedProject,
     setSelectedProject,
+    browserWorkspaceActive,
+    selectorValue: browserWorkspaceActive ? BROWSER_WORKSPACE_ID : selectedProject,
+    selectWorkspace,
+    clearDataset,
+    analysisHistory,
     activeTab,
     setActiveTab,
     projects,
-    currentOverview,
+    // Never show a project's overview while the Browser Workspace is the active context.
+    currentOverview: browserWorkspaceActive ? null : currentOverview,
     loadingOverview,
     theme,
     toggleTheme,

@@ -1,4 +1,5 @@
 import React from 'react';
+import { qualityFindings } from '../../analysis/summary';
 import { useApp } from '../../context/AppContext';
 import { Card, Notice, Stat, secondaryButton } from './ui';
 
@@ -10,31 +11,7 @@ export const QualityTab: React.FC = () => {
   const missingCells = profile.columns.reduce((sum, c) => sum + c.nullCount, 0);
   const unreadable = dataset.columns.reduce((sum, c) => sum + c.invalidCount, 0);
 
-  const findings: string[] = [];
-  for (const c of profile.columns) {
-    if (c.nullCount > 0) {
-      const share = ((c.nullCount / Math.max(1, profile.totalRows)) * 100).toFixed(1);
-      findings.push(`'${c.name}' has ${c.nullCount} missing value${c.nullCount === 1 ? '' : 's'} (${share}% of rows).`);
-    }
-  }
-  for (const c of dataset.columns) {
-    if (c.invalidCount > 0) {
-      findings.push(`'${c.name}' has ${c.invalidCount} value${c.invalidCount === 1 ? '' : 's'} that could not be read as ${c.kind}; the analysis treats them as missing.`);
-    }
-  }
-  if (profile.duplicateRows > 0) {
-    findings.push(`${profile.duplicateRows} row${profile.duplicateRows === 1 ? ' is' : 's are'} an exact duplicate of an earlier row.`);
-  }
-  for (const c of profile.columns) {
-    if (c.outlierFlag) {
-      findings.push(`'${c.name}' has ${c.outlierCount} outlier${c.outlierCount === 1 ? '' : 's'} (outside 1.5 x IQR); averages and sums may be skewed.`);
-    }
-  }
-  for (const c of profile.columns) {
-    if (c.dtype === 'string' && profile.totalRows > 1 && c.distinctCount === profile.totalRows - c.nullCount && c.distinctCount > 0) {
-      findings.push(`'${c.name}' is different in every row; it is probably an identifier and not useful to group by.`);
-    }
-  }
+  const findings = qualityFindings(dataset, profile);
 
   return (
     <div className="space-y-4">

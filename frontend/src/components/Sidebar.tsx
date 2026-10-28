@@ -13,6 +13,7 @@ import {
   ExternalLink,
   BarChart3,
 } from 'lucide-react';
+import { ProjectSelect } from './ProjectSelect';
 import { useApp } from '../context/AppContext';
 import { NavigationTab } from '../types/api';
 
@@ -43,9 +44,8 @@ export const Sidebar: React.FC = () => {
     activeDatasetProfile,
     isMobileNavOpen,
     setMobileNavOpen,
-    projects,
-    selectedProject,
-    setSelectedProject,
+    browserWorkspaceActive,
+    activeDataset,
   } = useApp();
 
   return (
@@ -62,18 +62,7 @@ export const Sidebar: React.FC = () => {
           >
             Active project
           </label>
-          <select
-            id="project-select-menu"
-            value={selectedProject}
-            onChange={(e) => setSelectedProject(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-          >
-            {projects.map((p) => (
-              <option key={p.project} value={p.project}>
-                {p.project} ({p.marts_count} marts)
-              </option>
-            ))}
-          </select>
+          <ProjectSelect id="project-select-menu" className="w-full truncate px-3 py-2" />
         </div>
         <div className="space-y-1">
           <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -130,6 +119,27 @@ export const Sidebar: React.FC = () => {
 
       {/* Selected Project Overview Card */}
       <div className="mt-auto space-y-3 pt-4">
+        {browserWorkspaceActive && activeDataset && (
+          <div className="rounded-2xl border border-sky-300 bg-sky-50 p-3.5 shadow-2xs dark:border-sky-800 dark:bg-sky-950/40">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="min-w-0 truncate font-bold text-sky-950 dark:text-sky-100" title={activeDataset.fileName}>
+                {activeDataset.fileName}
+              </span>
+              <span className="shrink-0 rounded bg-sky-200 px-1.5 py-0.2 text-[9px] font-bold text-sky-900 dark:bg-sky-900 dark:text-sky-100">
+                BROWSER
+              </span>
+            </div>
+            <div className="mt-2 space-y-1 text-[11px] text-sky-900 dark:text-sky-200">
+              <div className="flex items-center justify-between">
+                <span>Rows x columns:</span>
+                <span className="font-semibold">
+                  {activeDataset.rows.length.toLocaleString('en-US')} x {activeDataset.columns.length}
+                </span>
+              </div>
+              <div>Kept in this tab only. Not saved.</div>
+            </div>
+          </div>
+        )}
         {currentOverview && (
           <div className="rounded-2xl border border-slate-200/90 bg-slate-50/80 p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-800/50">
             <div className="flex items-center justify-between text-xs">
