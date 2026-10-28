@@ -8,7 +8,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from api.dependencies import get_project_root, require_api_key
-from api.schemas import UploadResponse, UploadsResponse
+from api.schemas import (
+    InterpretationRequest,
+    QuestionInterpretation,
+    UploadResponse,
+    UploadsResponse,
+)
+from api.services.interpretation import interpret_upload_question
 from api.services.uploads import (
     UploadTooLargeError,
     UploadValidationError,
@@ -72,6 +78,32 @@ def get_upload_detail(
     """Return metadata for a validated CSV upload by its safe upload identifier."""
     try:
         return get_upload(project_root, upload_id)
+    except (UploadValidationError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/uploads/{upload_id}/interpretation",
+    response_model=QuestionInterpretation,
+    summary="Preview how a question will be answered on an upload, or why it cannot be",
+)
+def interpret_upload(
+    upload_id: str,
+    payload: InterpretationRequest,
+    project_root: Annotated[Path, Depends(get_project_root)],
+) -> QuestionInterpretation:
+    """Say which measure, grouping and aggregation a question maps to, what was chosen by the user and what was
+    inferred, and which parts of the question Quaero cannot answer. Nothing is created or run."""
+    try:
+        return interpret_upload_question(project_root, upload_id, payload)
     except (UploadValidationError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

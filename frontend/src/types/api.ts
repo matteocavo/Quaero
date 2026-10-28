@@ -44,11 +44,15 @@ export interface MartPreviewResponse {
   page_size: number;
 }
 
+/** The aggregations the pipeline calculates. Anything else (median, minimum, ...) is refused. */
+export type Aggregation = 'average' | 'sum' | 'count';
+
 export interface RunRequest {
   question: string;
   source_url?: string;
   metric_column?: string | null;
   dimension_column?: string | null;
+  aggregation?: Aggregation | null;
 }
 
 export interface RunAcceptedResponse {
@@ -213,6 +217,7 @@ export interface ProjectCreateRequest {
   metric_column?: string | null;
   dimension_column?: string | null;
   time_column?: string | null;
+  aggregation?: Aggregation | null;
 }
 
 export interface ProjectCreateResponse {
@@ -223,8 +228,69 @@ export interface ProjectCreateResponse {
   metric_column: string | null;
   dimension_column: string | null;
   time_column: string | null;
+  aggregation: Aggregation | null;
   has_config: boolean;
   created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Question interpretation: what Quaero will do with a question, or why it will not
+// ---------------------------------------------------------------------------
+
+/** Where a choice came from: made by the user, read from the question or columns, or assumed because unstated. */
+export type SelectionOrigin = 'user_provided' | 'auto_inferred' | 'assumed_default';
+
+export interface InterpretationRequest {
+  question: string;
+  metric_column?: string | null;
+  dimension_column?: string | null;
+  aggregation?: Aggregation | null;
+  time_column?: string | null;
+}
+
+export interface InterpretedColumn {
+  column: string | null;
+  origin: SelectionOrigin | null;
+}
+
+export interface InterpretedValue {
+  value: string | null;
+  origin: SelectionOrigin | null;
+}
+
+export interface InterpretedTime {
+  column: string | null;
+  origin: SelectionOrigin | null;
+  /** `exact_values`: groups are the exact values of a date column, not periods. */
+  grouping: 'exact_values' | null;
+}
+
+export interface InterpretedFilters {
+  /** True when the question asks for a period or a value filter (which is then refused). */
+  requested: boolean;
+}
+
+export interface InterpretationIssue {
+  code: string;
+  /** `unsupported` and `needs_input` block the run; `warning` and `note` inform. */
+  severity: 'unsupported' | 'needs_input' | 'warning' | 'note';
+  message: string;
+  suggestion: string | null;
+}
+
+export interface QuestionInterpretation {
+  question: string;
+  language: 'en' | 'it';
+  status: 'ready' | 'needs_input' | 'unsupported';
+  metric: InterpretedColumn;
+  dimension: InterpretedColumn;
+  aggregation: InterpretedValue;
+  ordering: InterpretedValue;
+  time: InterpretedTime;
+  filters: InterpretedFilters;
+  issues: InterpretationIssue[];
+  summary: string | null;
+  suggested_questions: string[];
 }
 
 // ---------------------------------------------------------------------------

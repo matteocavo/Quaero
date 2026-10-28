@@ -255,10 +255,14 @@ def test_run_pipeline_raises_clear_error_for_ambiguous_metric_and_dimension(
     else:
         raise AssertionError("Expected the pipeline to raise for ambiguous inference.")
 
-    assert "Top candidate metric columns" in message
-    assert "Top candidate dimension columns" in message
+    # The refusal is structured now (see kpi_engine/question_interpreter.py): it says the question is not
+    # specific enough, lists the candidate measures and groupings, and says how to choose.
+    assert "not specific enough" in message
+    assert "Numeric columns:" in message
+    assert "Candidate columns:" in message
     assert "x1" in message
     assert "provider" in message
+    assert "choose" in message.lower()
 
 
 def test_run_pipeline_builds_grouped_count_mart_from_inferred_dimension(

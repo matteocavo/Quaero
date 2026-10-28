@@ -53,7 +53,8 @@ def test_frontend_optional_fields_are_nullable_or_defaulted_in_the_backend() -> 
 def test_frontend_only_calls_endpoints_that_exist() -> None:
     openapi_paths = set(app.openapi()["paths"])
     client_paths = read_client_paths()
-    assert len(client_paths) == 17  # 14 + /storage, /storage/policy, /storage/cleanup
+    # 14 + /storage, /storage/policy, /storage/cleanup + /uploads/{upload_id}/interpretation
+    assert len(client_paths) == 18
     missing = client_paths - openapi_paths
     assert not missing, f"frontend calls endpoints the API does not have: {sorted(missing)}"
 
@@ -94,3 +95,26 @@ def test_api_exposes_storage_endpoints_matching_the_frontend() -> None:
         "CleanupResponse",
     ):
         assert set(interfaces[name]) == _fields(getattr(schemas, name)), name
+
+
+def test_api_exposes_the_interpretation_endpoint_matching_the_frontend() -> None:
+    """The question interpretation preview and the explicit aggregation match the frontend payloads."""
+    paths = app.openapi()["paths"]
+    assert set(paths["/uploads/{upload_id}/interpretation"].keys()) == {"post"}
+    assert "/uploads/{upload_id}/interpretation" in read_client_paths()
+    interfaces = read_interfaces()
+    for name in (
+        "InterpretationRequest",
+        "InterpretedColumn",
+        "InterpretedValue",
+        "InterpretedTime",
+        "InterpretedFilters",
+        "InterpretationIssue",
+        "QuestionInterpretation",
+    ):
+        assert set(interfaces[name]) == _fields(getattr(schemas, name)), name
+    # the explicit aggregation travels in every place a question is run or a project is created
+    for name in ("RunRequest", "ProjectCreateRequest", "ProjectCreateResponse"):
+        assert "aggregation" in interfaces[name] and "aggregation" in _fields(
+            getattr(schemas, name)
+        ), name

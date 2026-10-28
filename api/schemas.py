@@ -84,6 +84,10 @@ class MartPreviewResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+#: The aggregations the pipeline actually calculates. Anything else (median, minimum, ...) is refused.
+Aggregation = Literal["average", "sum", "count"]
+
+
 class RunRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=1000)
     source_url: HttpUrl | None = Field(
@@ -99,6 +103,12 @@ class RunRequest(BaseModel):
         default=None,
         max_length=128,
         description="Optional explicit dimension column override for single-dataset projects.",
+    )
+    aggregation: Aggregation | None = Field(
+        default=None,
+        description=(
+            "Optional explicit aggregation (average, sum or count). It wins over the wording of the question."
+        ),
     )
 
     @field_validator("question")
@@ -330,6 +340,7 @@ class ProjectCreateRequest(BaseModel):
     metric_column: str | None = Field(default=None, max_length=128)
     dimension_column: str | None = Field(default=None, max_length=128)
     time_column: str | None = Field(default=None, max_length=128)
+    aggregation: Aggregation | None = Field(default=None)
 
     @field_validator("project", "upload_id", "question")
     @classmethod
@@ -347,8 +358,76 @@ class ProjectCreateResponse(BaseModel):
     metric_column: str | None
     dimension_column: str | None
     time_column: str | None
+    aggregation: Aggregation | None
     has_config: bool
     created_at: str
+
+
+# ---------------------------------------------------------------------------
+# Question interpretation (what Quaero will do with a question, or why it will not)
+# ---------------------------------------------------------------------------
+
+SelectionOrigin = Literal["user_provided", "auto_inferred", "assumed_default"]
+
+
+class InterpretationRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    metric_column: str | None = Field(default=None, max_length=128)
+    dimension_column: str | None = Field(default=None, max_length=128)
+    aggregation: Aggregation | None = Field(default=None)
+    time_column: str | None = Field(default=None, max_length=128)
+
+    @field_validator("question")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("question must not be blank")
+        return v.strip()
+
+
+class InterpretedColumn(BaseModel):
+    column: str | None
+    origin: SelectionOrigin | None
+
+
+class InterpretedValue(BaseModel):
+    value: str | None
+    origin: SelectionOrigin | None
+
+
+class InterpretedTime(BaseModel):
+    column: str | None
+    origin: SelectionOrigin | None
+    #: ``exact_values``: groups are the exact values of a date column, not periods.
+    grouping: Literal["exact_values"] | None
+
+
+class InterpretedFilters(BaseModel):
+    #: True when the question asks for a period or a value filter (which is then refused).
+    requested: bool
+
+
+class InterpretationIssue(BaseModel):
+    code: str
+    #: ``unsupported`` and ``needs_input`` block the run; ``warning`` and ``note`` inform.
+    severity: Literal["unsupported", "needs_input", "warning", "note"]
+    message: str
+    suggestion: str | None
+
+
+class QuestionInterpretation(BaseModel):
+    question: str
+    language: Literal["en", "it"]
+    status: Literal["ready", "needs_input", "unsupported"]
+    metric: InterpretedColumn
+    dimension: InterpretedColumn
+    aggregation: InterpretedValue
+    ordering: InterpretedValue
+    time: InterpretedTime
+    filters: InterpretedFilters
+    issues: list[InterpretationIssue]
+    summary: str | None
+    suggested_questions: list[str]
 
 
 # ---------------------------------------------------------------------------

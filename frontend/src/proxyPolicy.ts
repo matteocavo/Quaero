@@ -27,6 +27,7 @@ export const ALLOWED_ROUTES: readonly Route[] = [
   { method: 'GET', pattern: /^\/uploads$/ },
   { method: 'GET', pattern: new RegExp(`^/uploads/${ID}$`) },
   { method: 'POST', pattern: /^\/uploads$/, maxBodyBytes: MAX_UPLOAD_BODY_BYTES },
+  { method: 'POST', pattern: new RegExp(`^/uploads/${ID}/interpretation$`), maxBodyBytes: MAX_BODY_BYTES },
   { method: 'GET', pattern: /^\/storage$/ },
   { method: 'POST', pattern: /^\/storage\/(policy|cleanup)$/, maxBodyBytes: MAX_BODY_BYTES },
   { method: 'GET', pattern: /^\/projects$/ },

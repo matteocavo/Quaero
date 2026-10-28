@@ -37,6 +37,17 @@ describe('proxy allowlist', () => {
     expect(allowed('POST', '/api/uploads', '4096')).toBe(true);
     expect(allowed('POST', '/api/storage/policy', '40')).toBe(true);
     expect(allowed('POST', '/api/storage/cleanup', '90')).toBe(true);
+    expect(allowed('POST', '/api/uploads/upload_a1b2c3d4e5f6/interpretation', '300')).toBe(true);
+  });
+
+  it('keeps the interpretation endpoint to POST with a small body and a plain upload id', () => {
+    const url = '/api/uploads/upload_a1b2c3d4e5f6/interpretation';
+    expect(allowed('GET', url)).toBe(false);
+    expect(allowed('PUT', url, '300')).toBe(false);
+    expect(allowed('POST', url, String(MAX_BODY_BYTES + 1))).toBe(false);
+    expect(allowed('POST', url)).toBe(false); // no content-length
+    expect(allowed('POST', '/api/uploads/../interpretation', '300')).toBe(false);
+    expect(allowed('POST', '/api/uploads/a/b/interpretation', '300')).toBe(false);
   });
 
   it('keeps the storage endpoints to the verbs and paths the app uses', () => {
@@ -53,7 +64,7 @@ describe('proxy allowlist', () => {
   });
 
   it('only exposes endpoints the frontend uses', () => {
-    expect(ALLOWED_ROUTES).toHaveLength(12);
+    expect(ALLOWED_ROUTES).toHaveLength(13);
   });
 
   it.each([

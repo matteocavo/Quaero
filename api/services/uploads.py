@@ -563,6 +563,8 @@ def _create_project_from_upload(
         dataset_entry["dimension_column"] = dimension_col
     if time_col:
         dataset_entry["time_column"] = time_col
+    if request.aggregation:
+        dataset_entry["aggregation"] = request.aggregation
 
     config_payload: dict[str, Any] = {
         "project": project_id,
@@ -600,6 +602,7 @@ def _create_project_from_upload(
         metric_column=metric_col,
         dimension_column=dimension_col,
         time_column=time_col,
+        aggregation=request.aggregation,
         has_config=True,
         created_at=created_at,
     )

@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from api.schemas import RunStatus
+from kpi_engine.question_interpreter import QuestionInterpretationError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -253,6 +254,7 @@ def execute_run(
     source_url: str | None,
     metric_column: str | None = None,
     dimension_column: str | None = None,
+    aggregation: str | None = None,
 ) -> None:
     """Execute the pipeline synchronously (called inside a BackgroundTask).
 
@@ -303,6 +305,9 @@ def execute_run(
                             else:
                                 ds0.pop("dimension_column", None)
                             updated = True
+                        if aggregation is not None:
+                            ds0["aggregation"] = aggregation
+                            updated = True
                     if updated:
                         original_config_text = raw_config_text
                         restore_after_run = "upload_id" not in parsed_config
@@ -334,6 +339,9 @@ def execute_run(
                 source_path=source_url,
                 source_name=project,
                 question=question,
+                metric_column=(metric_column or "").strip() or None,
+                dimension_column=(dimension_column or "").strip() or None,
+                aggregation=aggregation,
                 project_root=project_root,
             )
         else:
@@ -346,6 +354,13 @@ def execute_run(
         state["result_keys"] = result_keys
         _db_transition(run_id, "COMPLETED")
         _db_register_marts(project_root, project, result)
+
+    except QuestionInterpretationError as exc:
+        # An expected outcome, not a crash: the question cannot be answered as asked. The message says why.
+        LOGGER.info("Run %s refused the question: %s", run_id, exc)
+        state["status"] = RunStatus.FAILED
+        state["error"] = str(exc)
+        _db_transition(run_id, "FAILED", error=str(exc))
 
     except Exception as exc:
         LOGGER.exception("Run %s failed: %s", run_id, exc)

@@ -20,6 +20,9 @@ import {
   LifecyclePolicyResponse,
   CleanupRequest,
   CleanupResponse,
+  Aggregation,
+  InterpretationRequest,
+  QuestionInterpretation,
   AppMode,
 } from '../types/api';
 import { LOCAL_UNAVAILABLE_MESSAGE, localOperationsAvailable } from '../utils/runtime';
@@ -299,6 +302,7 @@ export class QuaeroApiClient {
     sourceUrl?: string,
     metricColumn?: string,
     dimensionColumn?: string,
+    aggregation?: Aggregation,
   ): Promise<RunAcceptedResponse> {
     if (this.mode === 'demo') {
       throw new ApiError(
@@ -313,7 +317,22 @@ export class QuaeroApiClient {
         ...(sourceUrl ? { source_url: sourceUrl } : {}),
         ...(metricColumn !== undefined ? { metric_column: metricColumn } : {}),
         ...(dimensionColumn !== undefined ? { dimension_column: dimensionColumn } : {}),
+        ...(aggregation !== undefined ? { aggregation } : {}),
       }),
+    });
+  }
+
+  /** Say how a question will be answered on an upload, or why it cannot be. Nothing is created or run. */
+  public async interpretQuestion(
+    uploadId: string,
+    payload: InterpretationRequest,
+  ): Promise<QuestionInterpretation> {
+    if (this.mode === 'demo') {
+      throw new ApiError('Question interpretation for uploads is only available in Local Operations mode.', 403);
+    }
+    return this.request<QuestionInterpretation>(`/uploads/${encodeURIComponent(uploadId)}/interpretation`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
