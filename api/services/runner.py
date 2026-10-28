@@ -87,7 +87,9 @@ def _runs_dir(project_root: Path) -> Path:
 
 
 def _run_path(project_root: Path, run_id: str) -> Path:
-    return _runs_dir(project_root) / f"{run_id}.json"
+    """The run file for *run_id*. Run ids are server-generated UUIDs; anything else is not a run and never
+    becomes part of a path."""
+    return _runs_dir(project_root) / f"{uuid.UUID(str(run_id))}.json"
 
 
 #: On Windows a run file can be refused for a few milliseconds while another thread has it open (a poller
@@ -124,7 +126,10 @@ def _read_run_file(path: Path) -> dict[str, Any]:
 
 
 def _load_run(project_root: Path, run_id: str) -> dict[str, Any] | None:
-    path = _run_path(project_root, run_id)
+    try:
+        path = _run_path(project_root, run_id)
+    except ValueError:
+        return None
     try:
         return _read_run_file(path)
     except FileNotFoundError:
