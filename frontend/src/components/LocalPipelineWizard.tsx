@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { adviseUploadSetup } from '../analysis/advisor';
 import {
   Upload,
   FolderPlus,
@@ -72,12 +73,16 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
     const defaultSlug = toProjectSlug(stem) || 'local_analysis';
     setProjectName(defaultSlug);
 
-    const defaultMetric = upload.numeric_columns[0] || '';
+    // The browser rules pick a measure that varies (not the first numeric column, which may be all zeros).
+    // They fall back to the server's own lists when the rules find nothing.
+    const advice = adviseUploadSetup(upload);
+    const defaultMetric = advice.metric || upload.numeric_columns[0] || '';
     const defaultDim =
+      advice.dimension ||
       upload.candidate_dimensions.find((d) => d !== defaultMetric) ||
       upload.columns[0]?.normalized_name ||
       '';
-    const defaultTime = upload.candidate_time_columns[0] || '';
+    const defaultTime = advice.time || upload.candidate_time_columns[0] || '';
 
     setMetricColumn(defaultMetric);
     setDimensionColumn(defaultDim);
@@ -97,6 +102,8 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
     if (!selectedUpload) return;
     applyUploadDefaults(selectedUpload);
   }, [selectedUpload?.upload_id]);
+
+  const setupAdvice = useMemo(() => (selectedUpload ? adviseUploadSetup(selectedUpload) : null), [selectedUpload]);
 
   const suggestedQuestions = useMemo(() => {
     if (!selectedUpload) return [];
@@ -489,6 +496,57 @@ export const LocalPipelineWizard: React.FC<LocalPipelineWizardProps> = ({
               </div>
             </div>
           </div>
+
+          {setupAdvice && selectedUpload && (setupAdvice.metric || setupAdvice.notes.length > 0) && (
+            <div
+              data-testid="setup-advice"
+              className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-[11px] text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100"
+            >
+              <div className="font-bold">Suggested setup</div>
+              <p className="mt-0.5">
+                Chosen by fixed rules in your browser from the upload's columns, not by the Python pipeline:{' '}
+                {setupAdvice.metric ? (
+                  <>
+                    measure <span className="font-mono font-semibold">{setupAdvice.metric}</span>
+                  </>
+                ) : (
+                  'no numeric measure found'
+                )}
+                {setupAdvice.dimension && (
+                  <>
+                    , group by <span className="font-mono font-semibold">{setupAdvice.dimension}</span>
+                  </>
+                )}
+                {setupAdvice.time && (
+                  <>
+                    , time <span className="font-mono font-semibold">{setupAdvice.time}</span>
+                  </>
+                )}
+                .
+              </p>
+              {setupAdvice.notes.length > 0 && (
+                <ul className="mt-1 list-disc pl-4">
+                  {setupAdvice.notes.map((n) => (
+                    <li key={`${n.column}-${n.text}`}>
+                      <span className="font-mono font-semibold">{n.column}</span>: {n.text}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                data-testid="use-suggested-setup"
+                onClick={() => {
+                  setMetricColumn(setupAdvice.metric || '');
+                  setDimensionColumn(setupAdvice.dimension || '');
+                  setTimeColumn(setupAdvice.time || '');
+                }}
+                className="mt-2 rounded-lg border border-sky-300 bg-white px-2.5 py-1 font-semibold text-sky-900 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100"
+              >
+                Use suggested setup
+              </button>
+            </div>
+          )}
 
           <div>
             <div className="flex items-center justify-between">

@@ -72,6 +72,18 @@ describe('summarizeDataset', () => {
     expect(s.kindCounts).toEqual({ numeric: 3, categorical: 2, date: 1, boolean: 1 });
   });
 
+  it('counts a value that cannot be read as missing once, not twice', () => {
+    const csv = ['day', '2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-13-45'].join('\n');
+    const profile = parseCSV(csv, 'days.csv');
+    const dataset = buildDataset(profile, 'upload', 3);
+    expect(dataset.columns[0]).toMatchObject({ nullCount: 1, invalidCount: 1 }); // one bad value, in both counters
+    const s = summarizeDataset(dataset, profile);
+    expect(s.missingCells).toBe(1);
+    expect(s.completenessPct).toBe(83.3); // 5 of 6 cells
+    expect(s.columnSummaries[0]).toMatchObject({ missing: 1, missingPct: 16.7 });
+    expect(s.unreadable).toBe(1);
+  });
+
   it('computes numeric statistics over the non-missing values', () => {
     const units = summary().columnSummaries.find((c) => c.name === 'units')!;
     expect(units).toMatchObject({ missing: 1, missingPct: 16.7, min: 1, max: 7, mean: 3.6 });

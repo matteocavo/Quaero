@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { BarChart, HistogramChart, LineChart } from '../../components/charts/Charts';
+import { numericFacts } from '../../analysis/advisor';
 import { formatCell, formatNumber } from '../../analysis/format';
 import { MAX_FILTERS } from '../../analysis/limits';
 import { applyFilters, describeFilter, histogram, topValues, validateFilter } from '../../analysis/query';
@@ -223,6 +224,21 @@ function monthCounts(rows: Row[], column: string) {
   return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, value]) => ({ label, value }));
 }
 
+/** Values far from most others, by the same 1.5 x IQR rule as the Data Quality profile. */
+const Unusual: React.FC<{ rows: Row[]; column: string }> = ({ rows, column }) => {
+  const facts = numericFacts(rows, column);
+  if (!facts) return <p className="mt-1 text-[11px] text-slate-500">Too few values (under 4) to look for unusual ones.</p>;
+  const low = formatNumber(Number(facts.lowerFence.toPrecision(6)));
+  const high = formatNumber(Number(facts.upperFence.toPrecision(6)));
+  return (
+    <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300" data-testid="unusual-values">
+      {facts.below + facts.above === 0
+        ? `No unusual values: all ${facts.count.toLocaleString('en-US')} are between ${low} and ${high} (1.5 x the interquartile range, from ${formatNumber(facts.q1)} to ${formatNumber(facts.q3)}).`
+        : `Unusual values: ${facts.below} below ${low} and ${facts.above} above ${high} (1.5 x the interquartile range, from ${formatNumber(facts.q1)} to ${formatNumber(facts.q3)}). Unusual is not the same as wrong.`}
+    </p>
+  );
+};
+
 const Distribution: React.FC<{ rows: Row[]; column: DatasetColumn }> = ({ rows, column }) => {
   if (rows.length === 0) return <Notice>No rows to show: the filters match nothing.</Notice>;
   if (column.kind === 'numeric') {
@@ -232,6 +248,7 @@ const Distribution: React.FC<{ rows: Row[]; column: DatasetColumn }> = ({ rows, 
       <>
         <HistogramChart bins={bins} title={`Distribution of ${column.name} (${rows.length} rows)`} />
         {missing > 0 && <p className="mt-1 text-[11px] text-slate-500">{missing} rows have no value and are not drawn.</p>}
+        <Unusual rows={rows} column={column.name} />
       </>
     );
   }
@@ -247,9 +264,8 @@ const Distribution: React.FC<{ rows: Row[]; column: DatasetColumn }> = ({ rows, 
 // ------------------------------------------------------------------------------- tab
 
 export const ExploreTab: React.FC = () => {
-  const { activeDataset: dataset, draftSpec, setDraftSpec } = useApp();
+  const { activeDataset: dataset, draftSpec, setDraftSpec, distributionColumn: distColumn, setDistributionColumn: setDistColumn } = useApp();
   const [newColumn, setNewColumn] = useState('');
-  const [distColumn, setDistColumn] = useState('');
 
   const filters = draftSpec.filters;
   const usable = useMemo(

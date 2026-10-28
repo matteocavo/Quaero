@@ -1,6 +1,7 @@
 import React from 'react';
 import { qualityFindings } from '../../analysis/summary';
 import { useApp } from '../../context/AppContext';
+import { ColumnHealthCard } from './Suggestions';
 import { Card, Notice, Stat, secondaryButton } from './ui';
 
 /** The same Data Quality numbers as the profiling screen, next to the analysis and with plain findings. */
@@ -33,6 +34,8 @@ export const QualityTab: React.FC = () => {
           </ul>
         )}
       </Card>
+
+      <ColumnHealthCard />
 
       <Card
         title="Column scores"

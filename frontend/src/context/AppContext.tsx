@@ -66,6 +66,11 @@ interface AppContextType {
   analysisResult: AnalysisResult | null;
   analysisError: string | null;
   runDraftAnalysis: () => boolean;
+  /** Put a ready-made analysis into the query builder (keeping the current filters) and run it. */
+  applySpec: (spec: AnalysisSpec) => boolean;
+  /** Column shown in the distribution of Explore & Filter; set when a suggestion points at one. */
+  distributionColumn: string;
+  setDistributionColumn: (column: string) => void;
   localOperationsAvailable: boolean;
   isMobileNavOpen: boolean;
   setMobileNavOpen: (open: boolean) => void;
@@ -140,6 +145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('preview');
   const [draftSpec, setDraftSpec] = useState<AnalysisSpec>(EMPTY_SPEC);
+  const [distributionColumn, setDistributionColumn] = useState<string>('');
   const [appliedSpec, setAppliedSpec] = useState<AnalysisSpec | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -156,6 +162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDatasetMeta((previous) => ({ id: previous.id + 1, origin }));
     // Nothing from the previous dataset may survive: filters, grouping, results and the open tab.
     setDraftSpec(EMPTY_SPEC);
+    setDistributionColumn('');
     setAppliedSpec(null);
     setAnalysisResult(null);
     setAnalysisError(null);
@@ -168,6 +175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearDataset = useCallback(() => {
     setActiveDatasetProfile(null);
     setDraftSpec(EMPTY_SPEC);
+    setDistributionColumn('');
     setAppliedSpec(null);
     setAnalysisResult(null);
     setAnalysisError(null);
@@ -208,37 +216,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [activeDatasetProfile, setSelectedProject],
   );
 
-  const runDraftAnalysis = useCallback((): boolean => {
-    if (!activeDataset) return false;
-    const problems = validateSpec(activeDataset, draftSpec);
-    if (problems.length > 0) {
-      setAnalysisError(problems.join(' '));
-      return false;
-    }
-    try {
-      const result = runAnalysis(activeDataset, draftSpec);
-      setAppliedSpec(draftSpec);
-      setAnalysisResult(result);
-      setAnalysisHistory((previous) =>
-        [
-          ...previous,
-          {
-            id: (previous[previous.length - 1]?.id ?? 0) + 1,
-            spec: draftSpec,
-            sentence: specToSentence(draftSpec),
-            inputRows: result.inputRows,
-            filteredRows: result.filteredRows,
-            groups: result.totalGroups,
-          },
-        ].slice(-10),
-      );
-      setAnalysisError(null);
-      return true;
-    } catch (err) {
-      setAnalysisError(err instanceof AnalysisError ? err.message : 'The analysis could not be calculated.');
-      return false;
-    }
-  }, [activeDataset, draftSpec]);
+  const runSpec = useCallback(
+    (spec: AnalysisSpec): boolean => {
+      if (!activeDataset) return false;
+      const problems = validateSpec(activeDataset, spec);
+      if (problems.length > 0) {
+        setAnalysisError(problems.join(' '));
+        return false;
+      }
+      try {
+        const result = runAnalysis(activeDataset, spec);
+        setAppliedSpec(spec);
+        setAnalysisResult(result);
+        setAnalysisHistory((previous) =>
+          [
+            ...previous,
+            {
+              id: (previous[previous.length - 1]?.id ?? 0) + 1,
+              spec,
+              sentence: specToSentence(spec),
+              inputRows: result.inputRows,
+              filteredRows: result.filteredRows,
+              groups: result.totalGroups,
+            },
+          ].slice(-10),
+        );
+        setAnalysisError(null);
+        return true;
+      } catch (err) {
+        setAnalysisError(err instanceof AnalysisError ? err.message : 'The analysis could not be calculated.');
+        return false;
+      }
+    },
+    [activeDataset],
+  );
+
+  const runDraftAnalysis = useCallback((): boolean => runSpec(draftSpec), [runSpec, draftSpec]);
+
+  const applySpec = useCallback(
+    (spec: AnalysisSpec): boolean => {
+      // The user's filters stay: a suggestion changes what is calculated, not which rows are used.
+      const next: AnalysisSpec = { ...spec, filters: draftSpec.filters, question: draftSpec.question };
+      setDraftSpec(next);
+      return runSpec(next);
+    },
+    [runSpec, draftSpec.filters, draftSpec.question],
+  );
 
   const loadSampleDataset = useCallback((sampleType: 'release_impact' | 'global_indicators' = 'release_impact') => {
     try {
@@ -454,6 +477,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     analysisResult,
     analysisError,
     runDraftAnalysis,
+    applySpec,
+    distributionColumn,
+    setDistributionColumn,
     localOperationsAvailable: localAvailable,
     isMobileNavOpen,
     setMobileNavOpen,

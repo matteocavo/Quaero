@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { adviseDataset } from '../../analysis/advisor';
 import { formatCell } from '../../analysis/format';
 import { useApp } from '../../context/AppContext';
-import { Card, KindBadge, inputClass, secondaryButton } from './ui';
+import { Card, KindBadge, Notice, inputClass, secondaryButton } from './ui';
 
 export const PreviewTab: React.FC = () => {
-  const { activeDataset: dataset } = useApp();
+  const { activeDataset: dataset, setWorkspaceTab } = useApp();
+  const advice = useMemo(() => (dataset ? adviseDataset(dataset) : null), [dataset]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -17,6 +19,17 @@ export const PreviewTab: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {advice && advice.suggestions.length > 0 && (
+        <Notice>
+          <span className="font-semibold">
+            {advice.suggestions.length} suggested analys{advice.suggestions.length === 1 ? 'is is' : 'es are'} ready for this data.
+          </span>{' '}
+          They come from fixed rules on your columns, with the reason for each.{' '}
+          <button type="button" className="font-bold underline" onClick={() => setWorkspaceTab('build')}>
+            See the suggestions
+          </button>
+        </Notice>
+      )}
       <Card
         title="Columns"
         subtitle="The type of each column is read from your file; the next steps use these types."
