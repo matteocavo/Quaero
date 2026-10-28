@@ -7,6 +7,30 @@ documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/
 
 ## [Unreleased]
 
+Candidate for v0.7.0 - React web app. Not released.
+
+### Added
+- **Web app** (`frontend/`, React 19 + TypeScript + Vite + Tailwind): Get Started workflow, in-browser
+  CSV import and profiler, overview dashboard, project explorer, pipeline operations, mart explorer,
+  quality and anomalies, and a lineage DAG. **Public Demo** (bundled fixtures, no network requests) is
+  the default mode; **Local Operations** talks to the Quaero API through a same-origin dev proxy.
+- Dev/preview proxy hardening (`frontend/src/proxyPolicy.ts`): the API key is read from the server's
+  `QUAERO_API_KEY` only and added server-side, browser-supplied credentials are dropped, only the 12
+  endpoints the app uses are forwarded (fixed methods, size limits), and the server listens on
+  `127.0.0.1`.
+- GitHub Pages workflow for the static demo (`.github/workflows/web.yml`): builds on pull requests;
+  deployment is manual (`workflow_dispatch`) and not active until Pages is enabled.
+- Tests: 83 frontend unit/UI/integration tests (Vitest), a bundle secret/host check, and Python
+  contract and real-HTTP integration tests that run the frontend's endpoints, including a real
+  pipeline run via `POST /projects/{project}/run`, against a live `uvicorn`.
+- `frontend/README.md` and a documented dataset-upload gap with a proposal for a safe, separate
+  implementation.
+
+### Changed
+- `THIRD_PARTY_NOTICES.md` covers the web app's npm dependencies and demo data.
+- In Local Operations mode the web app never shows demo data (projects, metrics catalogue, project
+  config) and starts with an empty run question.
+
 ## [0.6.0] - 2026-10-27 - Operations Console
 
 Quaero gains a local operations console on top of the API. The analytical pipeline
