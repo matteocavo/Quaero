@@ -63,7 +63,7 @@ describe('Public Demo is the default and is fully offline', () => {
 
   it('lists the demo projects in the project selector', async () => {
     render(<App />);
-    const select = await screen.findByRole('combobox');
+    const select = await screen.findByLabelText('Select Active Project');
     await waitFor(() =>
       expect(within(select).getByRole('option', { name: /^release_impact \(/ })).toBeInTheDocument(),
     );
@@ -110,7 +110,7 @@ describe('Local Operations mode', () => {
 
     expect(await screen.findByText('FastAPI Backend Offline:')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('FastAPI Offline')).toBeInTheDocument());
-    const select = screen.getByRole('combobox');
+    const select = screen.getByLabelText('Select Active Project');
     expect(within(select).queryAllByRole('option')).toHaveLength(0);
     expect(document.body.textContent).not.toContain('global_economic_indicators');
   });
@@ -128,7 +128,7 @@ describe('Local Operations mode', () => {
     await switchToLive(user);
 
     expect(await screen.findByText('FastAPI Connected')).toBeInTheDocument();
-    const select = screen.getByRole('combobox');
+    const select = screen.getByLabelText('Select Active Project');
     await waitFor(() =>
       expect(within(select).getByRole('option', { name: /^live_project \(/ })).toBeInTheDocument(),
     );
@@ -197,5 +197,55 @@ describe('Local Operations mode', () => {
       question: 'Which year is best?',
       source_url: 'https://example.com/d.csv',
     });
+  });
+});
+
+describe('Static public host (GitHub Pages)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('disables Local Operations, explains why and sends no request', async () => {
+    vi.stubEnv('VITE_DEMO_ONLY', 'true');
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByTitle('Click to view environment settings'));
+
+    const local = screen.getByRole('button', { name: /Local Operations/ });
+    expect(local).toBeDisabled();
+    expect(screen.getByText(/not available on this public site/i, { selector: 'div' })).toBeInTheDocument();
+
+    await user.click(local);
+    expect(screen.getByText('Public Demo Sandbox')).toBeInTheDocument();
+    expect(screen.queryByText('FastAPI Offline')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('Mart explorer in the public demo', () => {
+  it('shows a plain message for marts without a bundled preview, with no invented columns', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(nav('Mart Explorer'));
+    await screen.findByText(/Mart Explorer|Total Rows/i, { selector: 'main *' });
+    const martSelect = document.querySelector('main select') as HTMLSelectElement;
+    await user.selectOptions(martSelect, 'mart_top_entities');
+
+    expect(await screen.findByText(/No preview is bundled for 'mart_top_entities'/)).toBeInTheDocument();
+    expect(screen.queryByText('metric_value')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('Navigation menu on small screens', () => {
+  it('opens from the menu button and closes after choosing a screen', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const menu = await screen.findByRole('button', { name: 'Open navigation menu' });
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+    await user.click(menu);
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+    await user.click(nav('Import & Profile Data'));
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
   });
 });

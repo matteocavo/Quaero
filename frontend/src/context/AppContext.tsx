@@ -6,6 +6,7 @@ import {
   ProjectOverviewResponse,
 } from '../types/api';
 import { QuaeroApiClient, ApiError } from '../services/apiClient';
+import { LOCAL_UNAVAILABLE_MESSAGE, localOperationsAvailable } from '../utils/runtime';
 import {
   DatasetProfile,
   parseCSV,
@@ -38,6 +39,9 @@ interface AppContextType {
   activeDatasetProfile: DatasetProfile | null;
   setActiveDatasetProfile: (profile: DatasetProfile | null) => void;
   loadSampleDataset: (sampleType?: 'release_impact' | 'global_indicators') => void;
+  localOperationsAvailable: boolean;
+  isMobileNavOpen: boolean;
+  setMobileNavOpen: (open: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -64,6 +68,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   }, []);
+
+  const localAvailable = useMemo(() => localOperationsAvailable(), []);
+  const [isMobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
 
   // Mode state - ALWAYS default to 'demo' for safety in preview & GitHub Pages
   const [mode, setModeState] = useState<AppMode>('demo');
@@ -118,6 +125,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const setMode = useCallback((newMode: AppMode) => {
+    if (newMode === 'live' && !localAvailable) {
+      // Static hosting (GitHub Pages): no API exists, so stay in demo and say why.
+      setFlashMessage({ text: LOCAL_UNAVAILABLE_MESSAGE, type: 'info' });
+      return;
+    }
     setModeState(newMode);
     apiClient.setMode(newMode);
     // Never carry data from the other mode over (demo fixtures must not appear in Live).
@@ -130,9 +142,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setConnectionStatus('checking');
       showFlash('Switched to Local Operations mode. Testing proxy connection to localhost:8000...', 'info');
     }
-  }, [apiClient, showFlash]);
+  }, [apiClient, localAvailable, showFlash]);
 
   const testLiveConnection = useCallback(async (): Promise<boolean> => {
+    if (!localAvailable) {
+      setConnectionStatus('demo');
+      return false;
+    }
     const tempClient = new QuaeroApiClient('live');
     try {
       setConnectionStatus('checking');
@@ -147,7 +163,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setConnectionStatus('disconnected');
       return false;
     }
-  }, []);
+  }, [localAvailable]);
 
   // Load projects list
   const refreshProjects = useCallback(async () => {
@@ -231,6 +247,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     activeDatasetProfile,
     setActiveDatasetProfile,
     loadSampleDataset,
+    localOperationsAvailable: localAvailable,
+    isMobileNavOpen,
+    setMobileNavOpen,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
