@@ -438,6 +438,27 @@ def test_a_period_column_that_exists_is_used_for_per_year_and_a_missing_one_is_r
     assert "time_grouping" in codes(run("ita", "Qual è il totale delle vendite per mese?"))
 
 
+def test_a_chosen_column_that_is_not_the_requested_period_is_flagged_not_silently_used():
+    # 'by month' asked, region chosen explicitly: the choice prevails, but the mismatch is shown.
+    result = interpret_question(
+        "How has revenue changed by month?",
+        _sales(),
+        metric_column="revenue",
+        dimension_column="region",
+    )
+    assert result["status"] == "ready"
+    note = next(i for i in result["issues"] if i["code"] == "time_grouping_not_applied")
+    assert (
+        note["severity"] == "warning" and "region" in note["message"] and "month" in note["message"]
+    )
+    # a column that really is the requested period raises no such warning
+    frame = pd.DataFrame({"month": ["Jan", "Feb"] * 6, "revenue": [float(i) for i in range(12)]})
+    ok = interpret_question(
+        "Total revenue by month", frame, metric_column="revenue", dimension_column="month"
+    )
+    assert "time_grouping_not_applied" not in codes(ok)
+
+
 def test_exact_dates_are_said_to_be_exact_when_there_is_no_grain_in_the_question():
     result = run("sales", "Show the average revenue by order_date")
     assert result["status"] == "ready" and "exact_dates" in codes(result)

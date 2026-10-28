@@ -121,6 +121,11 @@ test.describe('Local Operations full-stack E2E (FastAPI + Python pipeline + Reac
     await page.getByTestId('local-metric-select').selectOption('freight_cost');
     await page.getByTestId('local-dimension-select').selectOption('carrier');
 
+    // Running needs the person to have seen how the question is read
+    await expect(page.getByTestId('create-and-run-btn')).toBeDisabled();
+    await page.getByTestId('check-interpretation-btn').click();
+    await expect(page.getByTestId('interpretation-panel')).toContainText(/average/i);
+    await expect(page.getByTestId('interpretation-panel')).toContainText('freight_cost');
     await page.getByTestId('create-and-run-btn').click();
 
     // 4. Verify run completes and results panel appears in Pipeline Operations
@@ -174,5 +179,43 @@ test.describe('Local Operations full-stack E2E (FastAPI + Python pipeline + Reac
     // 8. View Data Lineage DAG
     await page.locator('aside nav button', { hasText: 'Data Lineage DAG' }).click();
     await expect(page.locator('main')).toContainText('mart_question_answer');
+  });
+
+  test('a question the pipeline cannot answer is explained and cannot be run; an explicit sum is honoured', async ({
+    page,
+  }) => {
+    await page.goto(`http://127.0.0.1:${webPort}/`, { waitUntil: 'networkidle' });
+    await page.getByTitle('Configure environment connection').click();
+    await page.getByRole('button', { name: /Local Operations/i }).click();
+    await expect(page.getByText(/Connected to local FastAPI backend/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Done' }).click();
+    await page.locator('aside nav button', { hasText: 'Import & Profile Data' }).click();
+
+    await page.getByTestId('local-csv-upload-input').setInputFiles({
+      name: 'second_logistics.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(EXTERNAL_CSV_CONTENT, 'utf-8'),
+    });
+    await expect(page.getByTestId('upload-metadata-card')).toBeVisible();
+
+    // 1. a median is not an available aggregation: it is refused, never turned into an average
+    await page
+      .getByTestId('local-project-question-input')
+      .fill('What is the median freight cost per carrier?');
+    await page.getByTestId('check-interpretation-btn').click();
+    await expect(page.getByTestId('interpretation-panel')).toContainText(/median/i);
+    await expect(page.getByTestId('create-and-run-btn')).toBeDisabled();
+
+    // 2. asking for a total, with the aggregation chosen explicitly, runs exactly that
+    await page
+      .getByTestId('local-project-question-input')
+      .fill('Which carrier has the most freight cost?');
+    await page.getByTestId('local-metric-select').selectOption('freight_cost');
+    await page.getByTestId('local-dimension-select').selectOption('carrier');
+    await page.getByTestId('local-aggregation-select').selectOption('sum');
+    await page.getByTestId('check-interpretation-btn').click();
+    await expect(page.getByTestId('interpretation-panel')).toContainText(/sum|total/i);
+    await page.getByTestId('create-and-run-btn').click();
+    await expect(page.getByTestId('local-results-panel')).toBeVisible({ timeout: 25_000 });
   });
 });

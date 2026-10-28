@@ -690,15 +690,15 @@ def interpret_question(
         if metric["column"] == "record_count":
             metric = _sel(metric["column"], "assumed_default")
     if grain and dimension_column and dimension_column in columns:
-        dim_series = dataframe[dimension_column]
-        if is_datetime64_any_dtype(dim_series) and not (
-            _name_words(dimension_column) & _GRAINS[grain]
-        ):
+        if not (_name_words(dimension_column) & _GRAINS[grain]):
+            if is_datetime64_any_dtype(dataframe[dimension_column]):
+                grouped_by = f"the exact values of {dimension_column}"
+            else:
+                grouped_by = dimension_column
             say(
                 "time_grouping_not_applied",
                 "warning",
-                f"The question groups by {grain}, but the analysis groups by the exact values of "
-                f"{dimension_column} (the column you chose).",
+                f"The question groups by {grain}, but the analysis groups by {grouped_by} (the column you chose).",
                 None,
             )
     if _TOP_N.search(_fold(text)):
