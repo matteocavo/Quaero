@@ -41,6 +41,21 @@ const MOCK_UPLOAD = {
   created_at: '2026-10-28T10:00:00Z',
 };
 
+const READY_INTERPRETATION = {
+  question: 'Which segment generates the highest average revenue?',
+  language: 'en',
+  status: 'ready',
+  metric: { column: 'revenue', origin: 'auto_inferred' },
+  dimension: { column: 'segment', origin: 'auto_inferred' },
+  aggregation: { value: 'average', origin: 'auto_inferred' },
+  ordering: { value: 'highest', origin: 'auto_inferred' },
+  time: { column: 'order_year', origin: 'auto_inferred', grouping: null },
+  filters: { requested: false },
+  issues: [],
+  summary: 'Average of revenue for each segment, highest first.',
+  suggested_questions: [],
+};
+
 describe('Local Operations Pipeline Workflow (Import -> Configure -> Run -> Results)', () => {
   const originalFetch = globalThis.fetch;
 
@@ -87,6 +102,9 @@ describe('Local Operations Pipeline Workflow (Import -> Configure -> Run -> Resu
       if (url === '/api/uploads' && method === 'POST') {
         uploadsList = [MOCK_UPLOAD];
         return new Response(JSON.stringify(MOCK_UPLOAD), { status: 201 });
+      }
+      if (url.endsWith('/interpretation') && method === 'POST') {
+        return new Response(JSON.stringify(READY_INTERPRETATION), { status: 200 });
       }
       if (url === '/api/projects' && method === 'POST') {
         const body = JSON.parse(String(init?.body || '{}'));
@@ -213,6 +231,13 @@ describe('Local Operations Pipeline Workflow (Import -> Configure -> Run -> Resu
     // 2. Configure project name and question, then click Create Project & Run Python Pipeline
     const projectInput = screen.getByTestId('local-project-name-input') as HTMLInputElement;
     expect(projectInput.value).toBe('customer_revenue');
+
+    // The run can only be confirmed on an interpretation the user has seen.
+    expect((screen.getByTestId('create-and-run-btn') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('check-interpretation-btn'));
+    await screen.findByTestId('interpretation-panel');
+    expect(screen.getByTestId('interpretation-status').textContent).toBe('Ready');
+    expect((screen.getByTestId('create-and-run-btn') as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(screen.getByTestId('create-and-run-btn'));
 

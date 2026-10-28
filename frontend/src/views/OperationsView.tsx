@@ -16,9 +16,10 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { InterpretationPanel } from '../components/InterpretationPanel';
 import { LocalPipelineWizard } from '../components/LocalPipelineWizard';
 import { useApp } from '../context/AppContext';
-import { RunHistoryItem, RunStatusResponse } from '../types/api';
+import { Aggregation, QuestionInterpretation, RunHistoryItem, RunStatusResponse } from '../types/api';
 import { downloadTextFile } from '../utils/download';
 
 export const OperationsView: React.FC = () => {
@@ -37,6 +38,8 @@ export const OperationsView: React.FC = () => {
   const [sourceUrl, setSourceUrl] = useState('');
   const [metricColumn, setMetricColumn] = useState('');
   const [dimensionColumn, setDimensionColumn] = useState('');
+  const [aggregation, setAggregation] = useState<Aggregation | ''>('');
+  const [resultInterpretation, setResultInterpretation] = useState<QuestionInterpretation | null>(null);
   const [runs, setRuns] = useState<RunHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -176,6 +179,7 @@ export const OperationsView: React.FC = () => {
         sourceUrl.trim() || undefined,
         metricColumn.trim() || undefined,
         dimensionColumn.trim() || undefined,
+        aggregation || undefined,
       );
       setMonitoredRun({
         run_id: res.run_id,
@@ -227,6 +231,25 @@ export const OperationsView: React.FC = () => {
       return '—';
     }
   };
+
+  useEffect(() => {
+    // The interpretation recorded with the results: what the numbers below actually answer.
+    setResultInterpretation(null);
+    if (mode !== 'live' || !selectedProject) return;
+    let cancelled = false;
+    apiClient
+      .getProjectSummary(selectedProject)
+      .then((detail) => {
+        const recorded = detail.summary?.interpretation;
+        if (!cancelled && recorded && typeof recorded === 'object') setResultInterpretation(recorded as QuestionInterpretation);
+      })
+      .catch(() => {
+        // No summary yet (nothing has run): there is nothing to show.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiClient, mode, selectedProject, monitoredRun?.status]);
 
   const hasResults =
     mode === 'live' &&
@@ -333,7 +356,10 @@ export const OperationsView: React.FC = () => {
                 <span className="font-mono">{monitoredRun.run_id}</span>
               </div>
               {monitoredRun.error ? (
-                <div className="font-mono text-[11px] text-rose-700 dark:text-rose-300">
+                <div
+                  data-testid="run-error"
+                  className="whitespace-pre-line font-mono text-[11px] text-rose-700 dark:text-rose-300"
+                >
                   {monitoredRun.error}
                 </div>
               ) : (
@@ -438,7 +464,7 @@ export const OperationsView: React.FC = () => {
           </div>
 
           {mode === 'live' && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <label htmlFor="run-metric-column" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Metric Column Override (Optional, single-dataset projects)
@@ -464,6 +490,23 @@ export const OperationsView: React.FC = () => {
                   placeholder="Leave blank to use project_config.json or auto-infer"
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
+              </div>
+              <div>
+                <label htmlFor="run-aggregation" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Aggregation (Optional)
+                </label>
+                <select
+                  id="run-aggregation"
+                  data-testid="run-aggregation-select"
+                  value={aggregation}
+                  onChange={(e) => setAggregation(e.target.value as Aggregation | '')}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">Read it from the question</option>
+                  <option value="average">Average</option>
+                  <option value="sum">Total (sum)</option>
+                  <option value="count">Count of records</option>
+                </select>
               </div>
             </div>
           )}
@@ -541,6 +584,15 @@ export const OperationsView: React.FC = () => {
               {currentOverview?.marts_count ?? 0} Marts Generated
             </span>
           </div>
+
+          {resultInterpretation && (
+            <div className="mt-4" data-testid="result-interpretation">
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                How these results were calculated
+              </div>
+              <InterpretationPanel interpretation={resultInterpretation} />
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <button
