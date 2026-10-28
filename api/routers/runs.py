@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 
@@ -34,7 +35,7 @@ async def trigger_run(
     project: str,
     payload: RunRequest,
     background_tasks: BackgroundTasks,
-    project_root: Path = Depends(get_project_root),
+    project_root: Annotated[Path, Depends(get_project_root)],
 ) -> RunAcceptedResponse:
     """Trigger an async pipeline run for an existing project.
 
@@ -96,7 +97,7 @@ async def trigger_run(
 async def get_run_status(
     project: str,
     run_id: str,
-    project_root: Path = Depends(get_project_root),
+    project_root: Annotated[Path, Depends(get_project_root)],
 ) -> RunStatusResponse:
     """Return the current status of a pipeline run."""
     run_state = get_run(project_root, run_id)
@@ -120,8 +121,8 @@ async def get_run_status(
 )
 async def list_run_history(
     project: str,
+    project_root: Annotated[Path, Depends(get_project_root)],
     limit: int = Query(default=50, ge=1, le=500, description="Max runs to return"),
-    project_root: Path = Depends(get_project_root),
 ) -> RunHistoryResponse:
     """Return the run history for a project from the SQLite store.
 
