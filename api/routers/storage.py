@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from api.dependencies import get_project_root, require_api_key
@@ -25,8 +23,8 @@ router = APIRouter(tags=["storage"], dependencies=[Depends(require_api_key)])
     response_model=StorageStatusResponse,
     summary="Space used by local uploads and projects",
 )
-def get_storage(project_root: Path = Depends(get_project_root)) -> StorageStatusResponse:
-    return lifecycle.get_storage_status(project_root)
+def get_storage() -> StorageStatusResponse:
+    return lifecycle.get_storage_status(get_project_root())
 
 
 @router.post(
@@ -36,11 +34,10 @@ def get_storage(project_root: Path = Depends(get_project_root)) -> StorageStatus
 )
 def post_policy(
     body: LifecyclePolicyRequest,
-    project_root: Path = Depends(get_project_root),
 ) -> LifecyclePolicyResponse:
     try:
         return LifecyclePolicyResponse(
-            lifecycle_policy=lifecycle.set_policy(project_root, body.lifecycle_policy)
+            lifecycle_policy=lifecycle.set_policy(get_project_root(), body.lifecycle_policy)
         )
     except LifecycleProtected as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -57,10 +54,11 @@ def post_policy(
 )
 def post_cleanup(
     body: CleanupRequest,
-    project_root: Path = Depends(get_project_root),
 ) -> CleanupResponse:
     try:
-        return lifecycle.execute_cleanup(project_root, body.scope, body.confirm, body.target_id)
+        return lifecycle.execute_cleanup(
+            get_project_root(), body.scope, body.confirm, body.target_id
+        )
     except LifecycleNotFound as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except LifecycleProtected as exc:

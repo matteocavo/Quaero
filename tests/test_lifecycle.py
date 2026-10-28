@@ -36,8 +36,12 @@ def root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 @pytest.fixture()
-def client(root: Path):
-    app.dependency_overrides[get_project_root] = lambda: root
+def client(root: Path, monkeypatch: pytest.MonkeyPatch):
+    # The storage router reads the project root from the environment, like the launcher sets it.
+    monkeypatch.setenv("QUAERO_PROJECT_ROOT", str(root))
+    app.dependency_overrides[get_project_root] = lambda: (
+        root
+    )  # the upload/project routers still use injection
     yield TestClient(app, raise_server_exceptions=False)
     app.dependency_overrides.clear()
 
