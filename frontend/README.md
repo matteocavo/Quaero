@@ -57,7 +57,7 @@ Open the app, click the mode pill in the header and choose **Local Operations**.
 
 ```bash
 npm run typecheck
-npm test                 # 83 tests: proxy policy, API client, CSV profiler, UI interactions,
+npm test                 # 88 tests: proxy policy, API client, CSV profiler, UI interactions,
                          # and a real Vite proxy in front of a fake backend
 npm run build
 QUAERO_API_KEY=any-sentinel-value npm run check:bundle
@@ -71,9 +71,11 @@ against a live `uvicorn`, including a real pipeline run.
 
 `.github/workflows/web.yml` builds the app with `VITE_BASE_PATH=/Quaero/` and publishes only the static
 Public Demo to `https://matteocavo.github.io/Quaero/`. It has no secrets and no dependency on FastAPI.
-It builds on pull requests and **deploys only when started manually** (`workflow_dispatch`). Before the
-first deployment: Settings -> Pages -> Source = "GitHub Actions", then run the workflow from the
-Actions tab.
+It builds and tests on pull requests and **deploys only when started manually (`workflow_dispatch`)
+from `refs/heads/main`**: a manual run from any other branch fails at the first step with an explicit
+error, and the deploy job is conditioned on the same ref. For defence in depth you can also restrict the
+`github-pages` environment to the `main` branch (Settings -> Environments). Before the first
+deployment: Settings -> Pages -> Source = "GitHub Actions", then run the workflow from the Actions tab.
 
 ## Known gaps
 

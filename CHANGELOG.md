@@ -19,8 +19,9 @@ Candidate for v0.7.0 - React web app. Not released.
   endpoints the app uses are forwarded (fixed methods, size limits), and the server listens on
   `127.0.0.1`.
 - GitHub Pages workflow for the static demo (`.github/workflows/web.yml`): builds on pull requests;
-  deployment is manual (`workflow_dispatch`) and not active until Pages is enabled.
-- Tests: 83 frontend unit/UI/integration tests (Vitest), a bundle secret/host check, and Python
+  deployment is manual (`workflow_dispatch`), allowed only from `main`, and not active until Pages is
+  enabled.
+- Tests: 88 frontend unit/UI/integration tests (Vitest), a bundle secret/host check, and Python
   contract and real-HTTP integration tests that run the frontend's endpoints, including a real
   pipeline run via `POST /projects/{project}/run`, against a live `uvicorn`.
 - `frontend/README.md` and a documented dataset-upload gap with a proposal for a safe, separate
