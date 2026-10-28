@@ -20,6 +20,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import logging
+import os
 import socket
 import threading
 import time
@@ -82,27 +83,29 @@ def _is_ssrf_risk(url: str) -> bool:
 
 def _runs_dir(project_root: Path) -> Path:
     """The resolved ``<project_root>/runs`` directory, created if needed."""
-    root = project_root.resolve()
-    runs = (root / "runs").resolve()
-    if not runs.is_relative_to(root):
+    root = os.path.realpath(project_root)
+    runs = os.path.realpath(os.path.join(root, "runs"))
+    if not runs.startswith(root + os.sep):
         raise ValueError("Runs directory escaped project root.")
-    runs.mkdir(parents=True, exist_ok=True)
-    return runs
+    os.makedirs(runs, exist_ok=True)
+    return Path(runs)
+
+
+def _inside_runs_dir(project_root: Path, path: Path) -> Path:
+    """*path* resolved, and only if it lies inside the runs directory (checked right before any I/O)."""
+    runs = os.path.realpath(_runs_dir(project_root))
+    target = os.path.realpath(path)
+    if not target.startswith(runs + os.sep):
+        raise ValueError(f"not a run file: {path.name}")
+    return Path(target)
 
 
 def _run_path(project_root: Path, run_id: str) -> Path:
     """The run file for *run_id*. Run ids are server-generated UUIDs; anything else is not a run and never
     becomes part of a path."""
-    return _runs_dir(project_root) / f"{uuid.UUID(str(run_id))}.json"
-
-
-def _inside_runs_dir(project_root: Path, path: Path) -> Path:
-    """*path* resolved, and only if it lies inside the runs directory (checked right before any I/O)."""
-    runs = _runs_dir(project_root)
-    resolved = path.resolve()
-    if not resolved.is_relative_to(runs):
-        raise ValueError(f"not a run file: {path.name}")
-    return resolved
+    return _inside_runs_dir(
+        project_root, _runs_dir(project_root) / f"{uuid.UUID(str(run_id))}.json"
+    )
 
 
 #: On Windows a run file can be refused for a few milliseconds while another thread has it open (a poller
