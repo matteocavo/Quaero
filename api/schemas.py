@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
@@ -314,6 +314,8 @@ class UploadResponse(BaseModel):
     candidate_dimensions: list[str]
     candidate_time_columns: list[str]
     created_at: str
+    #: Server session that created the upload; lets the lifecycle tell this session's temporary files apart.
+    session_id: str | None = None
 
 
 class UploadsResponse(BaseModel):
@@ -347,3 +349,82 @@ class ProjectCreateResponse(BaseModel):
     time_column: str | None
     has_config: bool
     created_at: str
+
+
+# ---------------------------------------------------------------------------
+# Local data lifecycle
+# ---------------------------------------------------------------------------
+
+LifecyclePolicy = Literal["ask_on_exit", "auto_cleanup", "keep_files"]
+CleanupScope = Literal["current_session", "orphaned", "single_upload", "project_artifacts"]
+
+
+class StorageUploadItem(BaseModel):
+    upload_id: str
+    original_filename: str | None
+    size_bytes: int
+    created_at: str | None
+    #: ``saved`` = a project uses it; otherwise temporary, owned by this session or left by an earlier one.
+    state: Literal["current_session", "orphaned", "saved"]
+    linked_projects: list[str]
+    #: One of the two files (CSV or metadata) is missing, usually after an interrupted deletion.
+    incomplete: bool
+
+
+class StorageProjectItem(BaseModel):
+    project: str
+    #: ``upload_project`` was created from an upload; ``preexisting`` projects are never deleted here.
+    kind: Literal["upload_project", "preexisting"]
+    upload_id: str | None
+    config_bytes: int
+    artifacts_bytes: int
+    artifact_files: int
+    marts_count: int
+    can_clear_artifacts: bool
+
+
+class StorageTotals(BaseModel):
+    temporary_uploads_bytes: int
+    saved_uploads_bytes: int
+    project_configs_bytes: int
+    artifacts_bytes: int
+    total_bytes: int
+
+
+class StorageStatusResponse(BaseModel):
+    session_id: str
+    lifecycle_policy: LifecyclePolicy
+    totals: StorageTotals
+    current_session_uploads: int
+    orphaned_uploads: int
+    uploads: list[StorageUploadItem]
+    projects: list[StorageProjectItem]
+
+
+class LifecyclePolicyRequest(BaseModel):
+    lifecycle_policy: LifecyclePolicy
+
+
+class LifecyclePolicyResponse(BaseModel):
+    lifecycle_policy: LifecyclePolicy
+
+
+class CleanupRequest(BaseModel):
+    scope: CleanupScope
+    #: Must be true: a permanent deletion is never implied.
+    confirm: bool
+    #: ``single_upload``: an upload id; ``project_artifacts``: a project name. Never a path.
+    target_id: str | None = Field(default=None, max_length=64)
+
+
+class CleanupSkipped(BaseModel):
+    id: str
+    reason: str
+
+
+class CleanupResponse(BaseModel):
+    scope: CleanupScope
+    deleted: list[str]
+    freed_bytes: int
+    skipped: list[CleanupSkipped]
+    message: str

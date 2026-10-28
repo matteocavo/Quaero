@@ -53,7 +53,7 @@ def test_frontend_optional_fields_are_nullable_or_defaulted_in_the_backend() -> 
 def test_frontend_only_calls_endpoints_that_exist() -> None:
     openapi_paths = set(app.openapi()["paths"])
     client_paths = read_client_paths()
-    assert len(client_paths) == 14
+    assert len(client_paths) == 17  # 14 + /storage, /storage/policy, /storage/cleanup
     missing = client_paths - openapi_paths
     assert not missing, f"frontend calls endpoints the API does not have: {sorted(missing)}"
 
@@ -72,3 +72,25 @@ def test_api_exposes_upload_and_project_creation_endpoints() -> None:
     assert set(paths["/projects"].keys()) == {"get", "post"}
     interfaces = read_interfaces()
     assert set(interfaces["ProjectCreateRequest"]) == _fields(schemas.ProjectCreateRequest)
+
+
+def test_api_exposes_storage_endpoints_matching_the_frontend() -> None:
+    """The local data lifecycle endpoints and payloads match what the frontend sends and expects."""
+    paths = app.openapi()["paths"]
+    assert set(paths["/storage"].keys()) == {"get"}
+    assert set(paths["/storage/policy"].keys()) == {"post"}
+    assert set(paths["/storage/cleanup"].keys()) == {"post"}
+    assert {"/storage", "/storage/policy", "/storage/cleanup"} <= read_client_paths()
+    interfaces = read_interfaces()
+    for name in (
+        "StorageUploadItem",
+        "StorageProjectItem",
+        "StorageTotals",
+        "StorageStatusResponse",
+        "LifecyclePolicyRequest",
+        "LifecyclePolicyResponse",
+        "CleanupRequest",
+        "CleanupSkipped",
+        "CleanupResponse",
+    ):
+        assert set(interfaces[name]) == _fields(getattr(schemas, name)), name

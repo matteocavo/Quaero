@@ -39,6 +39,7 @@ from api.schemas import (
     UploadResponse,
 )
 from api.services.artifacts import _validate_identifier
+from api.services.lifecycle import LIFECYCLE_LOCK, current_session_id
 from pipelines.mart_builder import find_time_column
 from pipelines.utils import normalize_name
 
@@ -420,6 +421,7 @@ async def store_uploaded_csv(
         candidate_dimensions=candidate_dimensions,
         candidate_time_columns=candidate_time_columns,
         created_at=created_at,
+        session_id=current_session_id(),
     )
 
     meta_path.write_text(
@@ -511,6 +513,15 @@ def create_project_from_upload(
     request: ProjectCreateRequest,
 ) -> ProjectCreateResponse:
     """Create a new local Quaero project backed by a validated CSV upload."""
+    # Held so an upload cannot be deleted as temporary between the checks below and the config being written.
+    with LIFECYCLE_LOCK:
+        return _create_project_from_upload(project_root, request)
+
+
+def _create_project_from_upload(
+    project_root: Path,
+    request: ProjectCreateRequest,
+) -> ProjectCreateResponse:
     project_id = _validate_and_normalize_project_name(request.project)
     upload_meta = get_upload(project_root, request.upload_id)
     csv_path, _ = _safe_upload_paths(project_root, upload_meta.upload_id)

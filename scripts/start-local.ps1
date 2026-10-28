@@ -70,6 +70,9 @@ if ([string]::IsNullOrWhiteSpace($env:QUAERO_API_KEY)) {
 }
 
 $env:QUAERO_PROJECT_ROOT = $RepoRoot
+# One id per launch. Uploads record it, so "this session's temporary files" is decided by the server and the
+# exit step, never by the browser, and a crash leaves files that the next launch recognises as left over.
+$env:QUAERO_SESSION_ID = "session_" + [guid]::NewGuid().ToString("N").Substring(0, 12)
 $env:QUAERO_API_URL = "http://$($ApiHost):$($ApiPort)"
 $env:QUAERO_CORS_ORIGINS = "http://localhost:$($WebPort),http://127.0.0.1:$($WebPort)"
 
@@ -81,6 +84,31 @@ if ($CheckOnly) {
     Write-Host "OK: Pre-flight check passed." -ForegroundColor Green
     exit 0
 }
+
+# Temporary uploads of an earlier session that never got cleaned up (for example after a crash).
+function Invoke-QuaeroLifecycle([string]$Command) {
+    Push-Location $RepoRoot
+    try {
+        & $PythonExe -m api.lifecycle_cli $Command
+    } catch {
+        Write-Host "Quaero: lifecycle step '$Command' skipped ($($_.Exception.Message))" -ForegroundColor Yellow
+    } finally {
+        Pop-Location
+    }
+}
+$script:LifecycleExitDone = $false
+function Invoke-QuaeroExitCleanup {
+    if ($script:LifecycleExitDone) { return }
+    $script:LifecycleExitDone = $true
+    Invoke-QuaeroLifecycle "exit"
+}
+Invoke-QuaeroLifecycle "report"
+
+# Best effort when the console window is closed: Ctrl+C is covered by the finally block below. If this does not
+# get to run, nothing is lost: the files stay and the next launch lists them.
+Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
+    & $using:PythonExe -m api.lifecycle_cli exit 2>$null
+} | Out-Null
 
 $ApiProcess = $null
 try {
@@ -125,5 +153,9 @@ try {
     if ($null -ne $ApiProcess -and -not $ApiProcess.HasExited) {
         Write-Host "Stopping Quaero FastAPI backend (PID $($ApiProcess.Id))..." -ForegroundColor Yellow
         Stop-Process -Id $ApiProcess.Id -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 500
     }
+    # After the server is stopped, so no file is still open. Applies the policy chosen in Local Storage:
+    # ask_on_exit (default) asks here, auto_cleanup deletes this session's temporary uploads, keep_files keeps.
+    Invoke-QuaeroExitCleanup
 }
