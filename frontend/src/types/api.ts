@@ -186,6 +186,7 @@ export type AppMode = 'demo' | 'live';
 export type NavigationTab =
   | 'home'
   | 'import'
+  | 'analyze'
   | 'overview'
   | 'explorer'
   | 'operations'

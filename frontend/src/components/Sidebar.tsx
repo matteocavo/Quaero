@@ -11,6 +11,7 @@ import {
   Activity,
   Database,
   ExternalLink,
+  BarChart3,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { NavigationTab } from '../types/api';
@@ -24,6 +25,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'Get Started & Workflow', icon: Home },
   { id: 'import', label: 'Import & Profile Data', icon: Upload },
+  { id: 'analyze', label: 'Analyze Dataset', icon: BarChart3 },
   { id: 'overview', label: 'Overview Dashboard', icon: LayoutDashboard },
   { id: 'explorer', label: 'Project Explorer', icon: FolderSearch },
   { id: 'operations', label: 'Pipeline Operations', icon: PlayCircle },
@@ -104,6 +106,11 @@ export const Sidebar: React.FC = () => {
                     />
                     <span>{item.label}</span>
                   </div>
+                  {item.id === 'analyze' && activeDatasetProfile && (
+                    <span className="rounded-full bg-sky-100 px-1.5 py-0.2 text-[9px] font-bold text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                      Ready
+                    </span>
+                  )}
                   {item.id === 'import' && activeDatasetProfile && (
                     <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                       Loaded

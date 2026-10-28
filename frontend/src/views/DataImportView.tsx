@@ -14,6 +14,7 @@ import {
   Layers,
   PlayCircle,
 } from 'lucide-react';
+import { checkFileSize, checkParsedSize } from '../analysis/limits';
 import { useApp } from '../context/AppContext';
 import { toCsv } from '../utils/csv';
 import { downloadTextFile, fileStem } from '../utils/download';
@@ -22,9 +23,10 @@ import { parseCSV, DatasetProfile, ColumnProfile } from '../utils/csvProfiler';
 export const DataImportView: React.FC = () => {
   const {
     activeDatasetProfile,
-    setActiveDatasetProfile,
+    loadDatasetProfile,
     loadSampleDataset,
     setActiveTab,
+    setWorkspaceTab,
     showFlash,
   } = useApp();
 
@@ -46,8 +48,16 @@ export const DataImportView: React.FC = () => {
   }, [profile, selectedColumnName]);
 
   const handleFileUpload = (file: File) => {
-    if (!file.name.endsWith('.csv') && file.type !== 'text/csv' && file.type !== 'text/plain') {
-      showFlash('Please select a valid CSV file (.csv).', 'error');
+    const lowerName = file.name.toLowerCase();
+    const looksLikeText =
+      /\.(csv|tsv|txt)$/.test(lowerName) || file.type === 'text/csv' || file.type === 'text/plain' || file.type === 'text/tab-separated-values';
+    if (!looksLikeText) {
+      showFlash('Please select a CSV file (.csv, .tsv or .txt). Excel workbooks must be exported to CSV first.', 'error');
+      return;
+    }
+    const sizeProblem = checkFileSize(file.size);
+    if (sizeProblem) {
+      showFlash(sizeProblem, 'error');
       return;
     }
 
@@ -56,7 +66,13 @@ export const DataImportView: React.FC = () => {
       try {
         const text = e.target?.result as string;
         const newProfile = parseCSV(text, file.name);
-        setActiveDatasetProfile(newProfile);
+        const sizeIssue = checkParsedSize(newProfile.totalRows, newProfile.totalColumns);
+        if (sizeIssue) {
+          // The previously loaded dataset, if any, is left untouched.
+          showFlash(sizeIssue, 'error');
+          return;
+        }
+        loadDatasetProfile(newProfile, 'upload');
         if (newProfile.columns.length > 0) {
           setSelectedColumnName(newProfile.columns[0].name);
         }
@@ -206,7 +222,7 @@ export const DataImportView: React.FC = () => {
           <input
             id="csv-input"
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.tsv,.txt,text/csv,text/plain"
             onChange={(e) => {
               if (e.target.files && e.target.files.length > 0) {
                 handleFileUpload(e.target.files[0]);
@@ -222,6 +238,26 @@ export const DataImportView: React.FC = () => {
 
       {profile && (
         <>
+          <div className="flex flex-col gap-3 rounded-2xl border border-sky-300 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-950/40 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-bold text-sky-950 dark:text-sky-100">Your dataset is ready to analyze</div>
+              <p className="text-xs text-sky-900 dark:text-sky-200">
+                Filter it, group it, calculate totals and averages, chart the result and download it, without leaving your browser.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setWorkspaceTab('preview');
+                setActiveTab('analyze');
+              }}
+              className="flex shrink-0 items-center justify-center space-x-1.5 rounded-xl bg-sky-600 px-5 py-3 text-sm font-bold text-white shadow-xs hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
+            >
+              <span>Analyze This Dataset</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+
           {/* Dataset Profiling Metrics */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
@@ -436,13 +472,16 @@ export const DataImportView: React.FC = () => {
               {/* Next Step Action Button */}
               <div className="mt-6 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Recommended Next Action:
+                  Next step:
                 </span>
                 <button
-                  onClick={() => setActiveTab('explorer')}
-                  className="mt-2 flex w-full items-center justify-center space-x-1.5 rounded-xl bg-sky-600 py-2.5 text-xs font-bold text-white shadow-2xs hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
+                  onClick={() => {
+                    setWorkspaceTab('preview');
+                    setActiveTab('analyze');
+                  }}
+                  className="mt-2 flex w-full items-center justify-center space-x-1.5 rounded-xl bg-sky-600 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
                 >
-                  <span>Formulate Business Question</span>
+                  <span>Analyze This Dataset</span>
                   <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>

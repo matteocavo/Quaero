@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { ConnectionModal } from './components/ConnectionModal';
 import { HomeView } from './views/HomeView';
 import { DataImportView } from './views/DataImportView';
+import { AnalysisWorkspace } from './views/analysis/AnalysisWorkspace';
 import { OverviewView } from './views/OverviewView';
 import { ProjectExplorerView } from './views/ProjectExplorerView';
 import { OperationsView } from './views/OperationsView';
@@ -103,6 +104,7 @@ const AppContent: React.FC = () => {
           {/* Active Screen Tab View */}
           {activeTab === 'home' && <HomeView />}
           {activeTab === 'import' && <DataImportView />}
+          {activeTab === 'analyze' && <AnalysisWorkspace />}
           {activeTab === 'overview' && <OverviewView />}
           {activeTab === 'explorer' && <ProjectExplorerView />}
           {activeTab === 'operations' && <OperationsView />}
