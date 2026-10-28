@@ -100,7 +100,9 @@ The code is in `src/analysis/` (pure TypeScript, no React) and `src/views/analys
 npm run typecheck
 npm run build:pages      # the static public build (base /Quaero/, demo only)
 npm run test:e2e         # real Chrome against that build: assets, console, every screen, phone layout,
-                         # CSV round trip, no API requests; needs Chrome installed
+                         # CSV round trip, no API requests, and the CSV analysis workflow
+                         # (upload -> filter -> aggregate -> chart -> export) on desktop and at 390 px;
+                         # needs Chrome installed
 npm test                 # proxy policy, API client, CSV profiler and reader/writer, the analysis engine
                          # (filters, aggregations, nulls, limits, exports), the upload -> analyze ->
                          # export UI workflow with fetch forbidden, and a real Vite proxy in front of a
