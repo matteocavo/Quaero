@@ -125,10 +125,18 @@ def _read_run_file(path: Path) -> dict[str, Any]:
     return _retry_sharing_conflicts(read)
 
 
+def _existing_run_file(project_root: Path, run_id: str) -> Path | None:
+    """The run file whose name is *run_id*, taken from the directory listing: the id is compared with the names
+    that exist, never joined into a path, so a request value cannot reach the filesystem."""
+    for candidate in _runs_dir(project_root).glob("*.json"):
+        if candidate.stem == run_id:
+            return candidate
+    return None
+
+
 def _load_run(project_root: Path, run_id: str) -> dict[str, Any] | None:
-    try:
-        path = _run_path(project_root, run_id)
-    except ValueError:
+    path = _existing_run_file(project_root, run_id)
+    if path is None:
         return None
     try:
         return _read_run_file(path)
