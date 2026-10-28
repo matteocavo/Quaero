@@ -35,12 +35,46 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, currentOverview, mode, activeDatasetProfile } = useApp();
+  const {
+    activeTab,
+    setActiveTab,
+    currentOverview,
+    mode,
+    activeDatasetProfile,
+    isMobileNavOpen,
+    setMobileNavOpen,
+    projects,
+    selectedProject,
+    setSelectedProject,
+  } = useApp();
 
   return (
-    <aside className="flex flex-col justify-between border-r border-slate-200 bg-white/80 p-3 backdrop-blur-xs dark:border-slate-800 dark:bg-slate-900/80 sm:w-64">
+    <aside
+      aria-label="Navigation"
+      className={`flex flex-col justify-between border-r border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 fixed bottom-0 left-0 top-16 z-40 w-72 max-w-[85vw] overflow-y-auto transition-transform duration-200 md:static md:z-auto md:w-64 md:max-w-none md:shrink-0 md:translate-x-0 md:overflow-visible md:bg-white/80 md:dark:bg-slate-900/80 ${isMobileNavOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'}`}
+    >
       {/* Navigation Links */}
       <div className="space-y-4">
+        <div className="space-y-1 md:hidden">
+          <label
+            htmlFor="project-select-menu"
+            className="px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
+          >
+            Active project
+          </label>
+          <select
+            id="project-select-menu"
+            value={selectedProject}
+            onChange={(e) => setSelectedProject(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          >
+            {projects.map((p) => (
+              <option key={p.project} value={p.project}>
+                {p.project} ({p.marts_count} marts)
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="space-y-1">
           <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Analytics Workflow
@@ -52,7 +86,10 @@ export const Sidebar: React.FC = () => {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileNavOpen(false);
+                  }}
                   className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition ${
                     isActive
                       ? 'bg-sky-50 text-sky-800 shadow-2xs dark:bg-sky-950/70 dark:text-sky-200'

@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { LOCAL_UNAVAILABLE_MESSAGE } from '../utils/runtime';
 
 export const ConnectionModal: React.FC = () => {
   const {
@@ -18,6 +19,7 @@ export const ConnectionModal: React.FC = () => {
     mode,
     setMode,
     testLiveConnection,
+    localOperationsAvailable,
     connectionStatus,
     showFlash,
   } = useApp();
@@ -56,6 +58,7 @@ export const ConnectionModal: React.FC = () => {
   };
 
   const handleSelectLive = () => {
+    if (!localOperationsAvailable) return;
     setMode('live');
     handleTestProxy();
   };
@@ -118,8 +121,12 @@ export const ConnectionModal: React.FC = () => {
             <button
               type="button"
               onClick={handleSelectLive}
+              disabled={!localOperationsAvailable}
+              aria-disabled={!localOperationsAvailable}
               className={`flex flex-col items-start rounded-2xl border p-4 text-left transition ${
-                mode === 'live'
+                !localOperationsAvailable
+                  ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 dark:border-slate-800 dark:bg-slate-900'
+                  : mode === 'live'
                   ? 'border-sky-500 bg-sky-50/60 ring-2 ring-sky-500/20 dark:border-sky-400 dark:bg-sky-950/40'
                   : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/60'
               }`}
@@ -131,7 +138,9 @@ export const ConnectionModal: React.FC = () => {
                 {mode === 'live' && <CheckCircle2 className="h-4 w-4 text-sky-600 dark:text-sky-400" />}
               </div>
               <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                Requires local FastAPI process. Connects via same-origin proxy without client-side API keys.
+                {localOperationsAvailable
+                  ? 'Requires local FastAPI process. Connects via same-origin proxy without client-side API keys.'
+                  : 'Not available on this public site: it needs the Quaero API on your own machine.'}
               </p>
             </button>
           </div>
@@ -147,8 +156,14 @@ export const ConnectionModal: React.FC = () => {
             </p>
           </div>
 
+          {!localOperationsAvailable && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              {LOCAL_UNAVAILABLE_MESSAGE}
+            </div>
+          )}
+
           {/* Local Backend Status & Testing */}
-          {mode === 'live' && (
+          {mode === 'live' && localOperationsAvailable && (
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-700 dark:text-slate-300">

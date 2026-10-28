@@ -32,6 +32,28 @@ Candidate for v0.7.0 - React web app. Not released.
 - `frontend/README.md` and a documented dataset-upload gap with a proposal for a safe, separate
   implementation.
 
+- Real-browser tests (`frontend/e2e`, Playwright with the installed Chrome) of the static public build
+  served under `/Quaero/`: asset loading, console and network cleanliness, every screen, the phone
+  layout, CSV import/export and Local Operations being unavailable. They run in the web workflow and can
+  target a deployed URL (`E2E_BASE_URL`).
+
+### Fixed
+Found by auditing the deployed GitHub Pages site in a real browser:
+- **Phone layout**: the sidebar took the whole screen width and squeezed the content to ~30 px. The
+  navigation is now a slide-over menu below the `md` breakpoint.
+- **Local Operations on a static host**: switching to it from GitHub Pages sent `/api/*` requests to the
+  Pages origin (404s) and reported a "backend offline" message. It is now unavailable on any non-loopback
+  host or when the build sets `VITE_DEMO_ONLY=true` (the Pages build), with an explanation, and the API
+  client refuses to send requests there.
+- **CSV import**: a quoted value containing a line break silently split one row into two. The reader
+  now follows RFC 4180 (quotes, doubled quotes, line breaks and delimiters in quotes, CRLF, BOM,
+  quote-aware delimiter detection) and duplicate or empty header names no longer overwrite columns.
+- **CSV export**: values were JSON-escaped (backslash-quoted) and rows with line breaks broke. Exports
+  are valid CSV, and text cells starting with `=`, `+`, `@` or a non-numeric `-` are prefixed with an
+  apostrophe so spreadsheets do not run them as formulas.
+- **Mart explorer (demo)**: marts without a bundled preview showed invented placeholder columns and
+  zero rows; they now say that no preview is bundled.
+
 ### Changed
 - `THIRD_PARTY_NOTICES.md` covers the web app's npm dependencies and demo data.
 - In Local Operations mode the web app never shows demo data (projects, metrics catalogue, project

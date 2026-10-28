@@ -9,6 +9,7 @@ import { QuaeroApiClient, ApiError } from '../services/apiClient';
 import { buildDataset } from '../analysis/dataset';
 import { AnalysisError, runAnalysis, validateSpec } from '../analysis/query';
 import type { AnalysisResult, AnalysisSpec, Dataset, DatasetOrigin } from '../analysis/types';
+import { LOCAL_UNAVAILABLE_MESSAGE, localOperationsAvailable } from '../utils/runtime';
 import {
   DatasetProfile,
   parseCSV,
@@ -51,6 +52,9 @@ interface AppContextType {
   analysisResult: AnalysisResult | null;
   analysisError: string | null;
   runDraftAnalysis: () => boolean;
+  localOperationsAvailable: boolean;
+  isMobileNavOpen: boolean;
+  setMobileNavOpen: (open: boolean) => void;
 }
 
 export type WorkspaceTab = 'preview' | 'quality' | 'explore' | 'build' | 'results' | 'export';
@@ -81,6 +85,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   }, []);
+
+  const localAvailable = useMemo(() => localOperationsAvailable(), []);
+  const [isMobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
 
   // Mode state - ALWAYS default to 'demo' for safety in preview & GitHub Pages
   const [mode, setModeState] = useState<AppMode>('demo');
@@ -174,6 +181,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const setMode = useCallback((newMode: AppMode) => {
+    if (newMode === 'live' && !localAvailable) {
+      // Static hosting (GitHub Pages): no API exists, so stay in demo and say why.
+      setFlashMessage({ text: LOCAL_UNAVAILABLE_MESSAGE, type: 'info' });
+      return;
+    }
     setModeState(newMode);
     apiClient.setMode(newMode);
     // Never carry data from the other mode over (demo fixtures must not appear in Live).
@@ -186,9 +198,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setConnectionStatus('checking');
       showFlash('Switched to Local Operations mode. Testing proxy connection to localhost:8000...', 'info');
     }
-  }, [apiClient, showFlash]);
+  }, [apiClient, localAvailable, showFlash]);
 
   const testLiveConnection = useCallback(async (): Promise<boolean> => {
+    if (!localAvailable) {
+      setConnectionStatus('demo');
+      return false;
+    }
     const tempClient = new QuaeroApiClient('live');
     try {
       setConnectionStatus('checking');
@@ -203,7 +219,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setConnectionStatus('disconnected');
       return false;
     }
-  }, []);
+  }, [localAvailable]);
 
   // Load projects list
   const refreshProjects = useCallback(async () => {
@@ -296,6 +312,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     analysisResult,
     analysisError,
     runDraftAnalysis,
+    localOperationsAvailable: localAvailable,
+    isMobileNavOpen,
+    setMobileNavOpen,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
