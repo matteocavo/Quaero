@@ -81,7 +81,11 @@ def _is_ssrf_risk(url: str) -> bool:
 
 
 def _runs_dir(project_root: Path) -> Path:
-    runs = project_root / "runs"
+    """The resolved ``<project_root>/runs`` directory, created if needed."""
+    root = project_root.resolve()
+    runs = (root / "runs").resolve()
+    if not runs.is_relative_to(root):
+        raise ValueError("Runs directory escaped project root.")
     runs.mkdir(parents=True, exist_ok=True)
     return runs
 
@@ -94,7 +98,7 @@ def _run_path(project_root: Path, run_id: str) -> Path:
 
 def _inside_runs_dir(project_root: Path, path: Path) -> Path:
     """*path* resolved, and only if it lies inside the runs directory (checked right before any I/O)."""
-    runs = _runs_dir(project_root).resolve()
+    runs = _runs_dir(project_root)
     resolved = path.resolve()
     if not resolved.is_relative_to(runs):
         raise ValueError(f"not a run file: {path.name}")
