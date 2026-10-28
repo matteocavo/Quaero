@@ -7,7 +7,20 @@ documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/
 
 ## [Unreleased]
 
-Candidate for v0.8.0 - Local Operations & Web App. Not released.
+## [0.8.0] - 2026-10-28 - Local Operations & Web App
+
+Local Operations & Web App. The local React + FastAPI + Python pipeline is complete; the public GitHub Pages
+demo stays 100% browser-only. Highlights:
+
+- Secure CSV uploads.
+- Local project creation.
+- End-to-end Python pipeline execution from the web app.
+- Data lifecycle management (temporary vs saved files, confirmed cleanup).
+- Analytical suggestions.
+- Transparent question interpretation, with refusals instead of silent substitutions.
+- Correct aggregation selection (average, sum, count).
+- Windows run polling reliability.
+- Dark, Light and System themes (Dark by default).
 
 ### Added
 - **Transparent question interpretation** (`kpi_engine/question_interpreter.py`,
@@ -40,31 +53,6 @@ Candidate for v0.8.0 - Local Operations & Web App. Not released.
   propose analyses with the reason, the exact calculation and the limits; applying one fills the existing query
   builder. No AI or external service, separate from the Python pipeline. The Local Operations wizard uses the same
   rules for its default measure, grouping and time column.
-
-### Changed
-- **Dark is the default theme.** Light and System are one click away in the header. Only a choice the user makes is
-  stored (`quaero_theme_preference`); nothing is written on the first visit. The old `quaero_theme` key, which the
-  previous version wrote for every first-time visitor, is migrated: a stored `dark` becomes an explicit choice, a
-  stored `light` is dropped because it cannot be told apart from the old automatic value. The theme is applied
-  before the first paint, so there is no flash.
-- The measure and grouping of a single-dataset run are no longer guessed by word overlap: they come from the
-  interpretation above. The optional LLM fallback is not used on this path (multi-dataset projects are unchanged).
-
-### Fixed
-- **Wrong answers to common questions**: "Which product has the *most revenue*" and "most streams" were answered
-  with a row count; "how many" was not always a count; "total" was not always a sum; an explicit measure or grouping
-  chosen in the form was overridden by the wording of the question. Each is now read as asked, and the explicit
-  choice always prevails.
-- **`GET /projects/{project}/runs/{run_id}` returned HTTP 500 intermittently on Windows**: the run file was being
-  replaced at the moment the poller had it open. Run files are now written with a unique temporary name, replaced
-  under a lock with a bounded retry on sharing violations, and read with the same retry.
-- The Local Operations wizard and the ready-made patterns chose the first numeric column as the measure even when
-  it was constant (for example all zeros).
-- The Browser Workspace Overview counted an unreadable value as missing twice.
-- The proxy key-leak test and the UI workflow tests no longer fail intermittently on a busy machine (longer
-  Testing Library and test timeouts).
-
-### Added (Local Operations workflow)
 - **Local Operations CSV-to-Pipeline workflow (`v0.8.0`)**: end-to-end local workflow in the React web
   app (`Import → Configure → Run → Results`) connected to the FastAPI backend and Python pipeline:
   - **CSV Upload API** (`POST /uploads`, `GET /uploads`, `GET /uploads/{upload_id}`): API-key
@@ -124,8 +112,32 @@ Candidate for v0.8.0 - Local Operations & Web App. Not released.
   layout, CSV import/export and Local Operations being unavailable. They run in the web workflow and can
   target a deployed URL (`E2E_BASE_URL`).
 
+### Changed
+- **Dark is the default theme.** Light and System are one click away in the header. Only a choice the user makes is
+  stored (`quaero_theme_preference`); nothing is written on the first visit. The old `quaero_theme` key, which the
+  previous version wrote for every first-time visitor, is migrated: a stored `dark` becomes an explicit choice, a
+  stored `light` is dropped because it cannot be told apart from the old automatic value. The theme is applied
+  before the first paint, so there is no flash.
+- The measure and grouping of a single-dataset run are no longer guessed by word overlap: they come from the
+  interpretation above. The optional LLM fallback is not used on this path (multi-dataset projects are unchanged).
+- `THIRD_PARTY_NOTICES.md` covers the web app's npm dependencies and demo data.
+- In Local Operations mode the web app never shows demo data (projects, metrics catalogue, project
+  config) and starts with an empty run question.
+
 ### Fixed
-Found by auditing the deployed GitHub Pages site in a real browser:
+- **Wrong answers to common questions**: "Which product has the *most revenue*" and "most streams" were answered
+  with a row count; "how many" was not always a count; "total" was not always a sum; an explicit measure or grouping
+  chosen in the form was overridden by the wording of the question. Each is now read as asked, and the explicit
+  choice always prevails.
+- **`GET /projects/{project}/runs/{run_id}` returned HTTP 500 intermittently on Windows**: the run file was being
+  replaced at the moment the poller had it open. Run files are now written with a unique temporary name, replaced
+  under a lock with a bounded retry on sharing violations, and read with the same retry.
+- The Local Operations wizard and the ready-made patterns chose the first numeric column as the measure even when
+  it was constant (for example all zeros).
+- The Browser Workspace Overview counted an unreadable value as missing twice.
+- The proxy key-leak test and the UI workflow tests no longer fail intermittently on a busy machine (longer
+  Testing Library and test timeouts).
+- Found by auditing the deployed GitHub Pages site in a real browser:
 - **Phone layout**: the sidebar took the whole screen width and squeezed the content to ~30 px. The
   navigation is now a slide-over menu below the `md` breakpoint.
 - **Local Operations on a static host**: switching to it from GitHub Pages sent `/api/*` requests to the
@@ -140,11 +152,6 @@ Found by auditing the deployed GitHub Pages site in a real browser:
   apostrophe so spreadsheets do not run them as formulas.
 - **Mart explorer (demo)**: marts without a bundled preview showed invented placeholder columns and
   zero rows; they now say that no preview is bundled.
-
-### Changed
-- `THIRD_PARTY_NOTICES.md` covers the web app's npm dependencies and demo data.
-- In Local Operations mode the web app never shows demo data (projects, metrics catalogue, project
-  config) and starts with an empty run question.
 
 ## [0.6.0] - 2026-10-27 - Operations Console
 
