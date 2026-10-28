@@ -33,6 +33,7 @@ function fakeBackend(initial: StorageUploadItem[]) {
   const calls: { url: string; method: string; body: Record<string, unknown> | null }[] = [];
   const skipOnNextCleanup = new Set<string>();
   let refuseWith: { status: number; detail: string } | null = null;
+  let policyFails = false;
 
   const status = (): StorageStatusResponse => {
     const temp = uploads.filter((u) => u.state !== 'saved');
@@ -66,6 +67,7 @@ function fakeBackend(initial: StorageUploadItem[]) {
     if (url === '/api/uploads' && method === 'GET') return json({ uploads: [] });
     if (url === '/api/storage' && method === 'GET') return json(status());
     if (url === '/api/storage/policy' && method === 'POST') {
+      if (policyFails) return json({ detail: 'Could not write the policy file.' }, 500);
       policy = (body as { lifecycle_policy: LifecyclePolicy }).lifecycle_policy;
       return json({ lifecycle_policy: policy });
     }
@@ -95,6 +97,9 @@ function fakeBackend(initial: StorageUploadItem[]) {
     calls,
     cleanupCalls: () => calls.filter((c) => c.url === '/api/storage/cleanup'),
     skip: (id: string) => skipOnNextCleanup.add(id),
+    failPolicy: () => {
+      policyFails = true;
+    },
     refuse: (status: number, detail: string) => {
       refuseWith = { status, detail };
     },
@@ -167,6 +172,20 @@ describe('Local Storage screen', () => {
     await waitFor(() => expect((screen.getByRole('radio', { name: /Keep files/ }) as HTMLInputElement).checked).toBe(true));
     expect(backend.calls.find((c) => c.url === '/api/storage/policy')?.body).toEqual({ lifecycle_policy: 'keep_files' });
     expect(backend.cleanupCalls()).toHaveLength(0);
+  });
+
+  it('puts the previous choice back, and says so, when the setting cannot be saved', async () => {
+    const backend = fakeBackend(standard());
+    backend.failPolicy();
+    globalThis.fetch = backend.fetchMock as unknown as typeof fetch;
+    render(<App />);
+    openStorage();
+    await screen.findByRole('heading', { name: /Local Storage/ });
+
+    fireEvent.click(screen.getByRole('radio', { name: /Auto cleanup/ }));
+    await screen.findByText(/Could not write the policy file/);
+    expect((screen.getByRole('radio', { name: /Ask on exit/ }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: /Auto cleanup/ }) as HTMLInputElement).checked).toBe(false);
   });
 
   it('never deletes anything just by looking, refreshing or opening the confirmation', async () => {

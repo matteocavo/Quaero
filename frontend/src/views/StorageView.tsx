@@ -88,11 +88,15 @@ export const StorageView: React.FC = () => {
   }
 
   const changePolicy = async (policy: LifecyclePolicy) => {
+    const previous = status?.lifecycle_policy;
+    // Show the choice at once (the radio is controlled by this state) and put the old one back if saving fails.
+    setStatus((s) => (s ? { ...s, lifecycle_policy: policy } : s));
     try {
       const saved = await apiClient.setLifecyclePolicy(policy);
       setStatus((s) => (s ? { ...s, lifecycle_policy: saved.lifecycle_policy } : s));
       showFlash(`Cleanup on exit set to “${POLICIES.find((p) => p.value === policy)?.label}”.`, 'success');
     } catch (err) {
+      if (previous) setStatus((s) => (s ? { ...s, lifecycle_policy: previous } : s));
       showFlash(err instanceof Error ? err.message : 'Could not save the setting.', 'error');
     }
   };
