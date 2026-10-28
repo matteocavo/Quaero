@@ -92,6 +92,15 @@ def _run_path(project_root: Path, run_id: str) -> Path:
     return _runs_dir(project_root) / f"{uuid.UUID(str(run_id))}.json"
 
 
+def _inside_runs_dir(project_root: Path, path: Path) -> Path:
+    """*path* resolved, and only if it lies inside the runs directory (checked right before any I/O)."""
+    runs = _runs_dir(project_root).resolve()
+    resolved = path.resolve()
+    if not resolved.is_relative_to(runs):
+        raise ValueError(f"not a run file: {path.name}")
+    return resolved
+
+
 #: On Windows a run file can be refused for a few milliseconds while another thread has it open (a poller
 #: reading it, the runner replacing it). That is a temporary sharing conflict: retry with a short, growing pause
 #: (about half a second in all), then let the error through. A refusal that lasts is a real problem and must
@@ -117,9 +126,11 @@ def _retry_sharing_conflicts(operation: Callable[[], _T]) -> _T:
 _RUN_FILE_LOCK = threading.Lock()
 
 
-def _read_run_file(path: Path) -> dict[str, Any]:
+def _read_run_file(project_root: Path, path: Path) -> dict[str, Any]:
+    target = _inside_runs_dir(project_root, path)
+
     def read() -> dict[str, Any]:
-        with _RUN_FILE_LOCK, path.open(encoding="utf-8") as fh:
+        with _RUN_FILE_LOCK, target.open(encoding="utf-8") as fh:
             return json.load(fh)
 
     return _retry_sharing_conflicts(read)
@@ -139,15 +150,15 @@ def _load_run(project_root: Path, run_id: str) -> dict[str, Any] | None:
     if path is None:
         return None
     try:
-        return _read_run_file(path)
+        return _read_run_file(project_root, path)
     except FileNotFoundError:
         return None
 
 
 def _save_run(project_root: Path, state: dict[str, Any]) -> None:
     """Write the state atomically: a complete file under a unique name, then one replace."""
-    path = _run_path(project_root, state["run_id"])
-    tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+    path = _inside_runs_dir(project_root, _run_path(project_root, state["run_id"]))
+    tmp = _inside_runs_dir(project_root, path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp"))
 
     def replace() -> None:
         with _RUN_FILE_LOCK:
@@ -166,7 +177,7 @@ def _active_run_for_project(project_root: Path, project: str) -> dict[str, Any] 
     runs_dir = _runs_dir(project_root)
     for run_file in runs_dir.glob("*.json"):
         try:
-            state = _read_run_file(run_file)
+            state = _read_run_file(project_root, run_file)
             if state.get("project") == project and state.get("status") in (
                 RunStatus.QUEUED,
                 RunStatus.RUNNING,
