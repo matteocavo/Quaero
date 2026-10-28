@@ -77,6 +77,8 @@ async def trigger_run(
         project=project,
         question=payload.question,
         source_url=source_url,
+        metric_column=payload.metric_column,
+        dimension_column=payload.dimension_column,
     )
 
     return RunAcceptedResponse(

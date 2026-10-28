@@ -105,13 +105,23 @@ def read_project_overview(project_root: Path, project: str) -> dict[str, Any]:
         except ArtifactReadError:
             summary = None
 
+    config_path = project_dir / "project_config.json"
+    config_fallback: dict[str, Any] | None = None
+    if summary is None and not summary_path.is_file() and config_path.is_file():
+        try:
+            config_fallback = _read_json_object(config_path)
+        except ArtifactReadError:
+            config_fallback = None
+
     marts_dir = project_dir / "marts"
     marts_count = len(list(marts_dir.glob("*.parquet"))) if marts_dir.is_dir() else 0
 
-    if summary is None:
-        project_mode = None
+    if summary is not None:
+        project_mode: str | None = str(summary.get("project_mode") or "single_dataset")
+    elif config_fallback is not None and isinstance(config_fallback.get("datasets"), list):
+        project_mode = "multi_dataset" if len(config_fallback["datasets"]) > 1 else "single_dataset"
     else:
-        project_mode = str(summary.get("project_mode") or "single_dataset")
+        project_mode = None
 
     availability = ArtifactAvailability(
         summary=summary_path.is_file(),
@@ -123,7 +133,13 @@ def read_project_overview(project_root: Path, project: str) -> dict[str, Any]:
 
     def _text(key: str) -> str | None:
         value = summary.get(key) if summary else None
-        return value if isinstance(value, str) else None
+        if isinstance(value, str):
+            return value
+        if config_fallback is not None and key == "question":
+            fallback_val = config_fallback.get("question")
+            if isinstance(fallback_val, str):
+                return fallback_val
+        return None
 
     return {
         "project": project,
@@ -132,7 +148,7 @@ def read_project_overview(project_root: Path, project: str) -> dict[str, Any]:
         "primary_mart": _text("primary_mart"),
         "primary_kpi": _text("primary_kpi"),
         "marts_count": marts_count,
-        "has_config": (project_dir / "project_config.json").is_file(),
+        "has_config": config_path.is_file(),
         "artifacts": availability,
     }
 

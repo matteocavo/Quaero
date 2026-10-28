@@ -97,8 +97,9 @@ def run_project_from_config(
                 source_type="custom_loader",
             )
         else:
+            resolved_source_path = _resolve_local_dataset_source(dataset_source, repo_root)
             ingestion_result = ingest_input(
-                source_path=dataset_source,
+                source_path=resolved_source_path,
                 source_name=dataset_name,
                 project_root=project_dir,
                 snapshot_name=dataset_name,
@@ -116,8 +117,18 @@ def run_project_from_config(
             source_name=dataset_name,
             project_root=project_dir,
         )
-        time_col = normalize_name(dataset["time_column"])
-        coverage = _compute_dataset_coverage(cleaning_result["dataframe"], time_col)
+        raw_time_column = dataset.get("time_column")
+        if raw_time_column:
+            time_col: str | None = normalize_name(str(raw_time_column))
+        elif project_mode == "single_dataset":
+            time_col = find_time_column(cleaning_result["dataframe"])
+        else:
+            raise KeyError("time_column")
+        coverage = (
+            _compute_dataset_coverage(cleaning_result["dataframe"], time_col)
+            if time_col
+            else {"min_year": None, "max_year": None}
+        )
         prepared_datasets.append(
             {
                 "config": dataset,
@@ -263,6 +274,11 @@ def run_project_from_config(
             dimension_column=dataset_config.get("dimension_column"),
         )
         resolved_metric_column = query_selection["metric"]["metric_column"]
+        configured_time_col = (
+            normalize_name(str(dataset_config["time_column"]))
+            if dataset_config.get("time_column")
+            else None
+        )
         mart_build = _build_available_marts(
             dataframe=cleaned_dataframe,
             metric_column=resolved_metric_column,
@@ -273,6 +289,7 @@ def run_project_from_config(
             provider_column=dataset_config.get("provider_column", "provider"),
             release_year_column=dataset_config.get("release_year_column", "release_year"),
             project_root=project_dir,
+            time_column=configured_time_col,
         )
         mart_results = mart_build["marts"]
         question_guidance = _build_question_guidance(
@@ -310,8 +327,41 @@ def run_project_from_config(
             ),
             project_root=project_dir,
         )
+        mart_dataframes = {
+            name: r["dataframe"] for name, r in mart_results.items() if "dataframe" in r
+        }
+        dq_score_result = score_dataframe(
+            dataframe=cleaned_dataframe,
+            source_name=normalized_source_name,
+            project_root=project_dir,
+        )
+        sql_paths = export_marts_to_sql(mart_dataframes, project_root=project_dir)
+        pbi_schema_result = export_pbi_schema(mart_dataframes, project_root=project_dir)
+        cleaning_log = primary_dataset["cleaning_result"].get("cleaning_log", {})
+        lineage_result = build_lineage(
+            raw_columns=primary_dataset["ingestion_result"].get(
+                "columns", list(cleaned_dataframe.columns)
+            ),
+            staging_dataframe=cleaned_dataframe,
+            marts=mart_dataframes,
+            cleaning_log=cleaning_log,
+            source_name=normalized_source_name,
+            project_root=project_dir,
+        )
+        metrics_yaml_path = write_metrics_yaml(mart_dataframes, project_root=project_dir)
+        lineage_html_result = render_lineage_html(
+            source_name=normalized_source_name,
+            project_root=project_dir,
+        )
+        anomaly_framing_result = frame_anomalies(
+            source_name=normalized_source_name,
+            total_row_count=len(anomaly_input),
+            project_root=project_dir,
+        )
         dataset_runs[0]["metric_column"] = resolved_metric_column
-        dataset_runs[0]["time_column"] = dataset_config.get("time_column")
+        dataset_runs[0]["time_column"] = dataset_config.get("time_column") or dataset_runs[0].get(
+            "time_column"
+        )
         dataset_runs[0]["unit"] = infer_metric_unit(resolved_metric_column)
 
         results = {
@@ -330,6 +380,7 @@ def run_project_from_config(
                 "output_path",
                 "metadata_path",
             ),
+            "cleaning_log": cleaning_log,
             "marts": {
                 name: _prefixed_path(project_prefix, result["output_path"])
                 for name, result in mart_results.items()
@@ -350,6 +401,19 @@ def run_project_from_config(
             "dashboard_suggestions": _with_project_prefix(
                 dashboard_result, project_prefix, "output_path"
             ),
+            "dq_score": _with_project_prefix(dq_score_result, project_prefix, "output_path"),
+            "sql_exports": {
+                name: _prefixed_path(project_prefix, p) for name, p in sql_paths.items()
+            },
+            "pbi_schema": _with_project_prefix(pbi_schema_result, project_prefix, "output_path"),
+            "lineage": _with_project_prefix(lineage_result, project_prefix, "output_path"),
+            "lineage_html": _with_project_prefix(
+                lineage_html_result, project_prefix, "output_path"
+            ),
+            "anomaly_framing_v2": _with_project_prefix(
+                anomaly_framing_result, project_prefix, "output_path"
+            ),
+            "metrics_yaml_path": _prefixed_path(project_prefix, metrics_yaml_path),
             "question_guidance": question_guidance,
         }
 
@@ -580,6 +644,7 @@ def _build_available_marts(
     provider_column: str,
     release_year_column: str,
     project_root: Path,
+    time_column: str | None = None,
 ) -> dict[str, Any]:
     """Build only the marts supported by the available columns."""
     mart_results: dict[str, dict[str, Any]] = {}
@@ -589,7 +654,9 @@ def _build_available_marts(
     metric_is_record_count = metric_column == "record_count"
     effective_catalog_column = catalog_column or dimension_column
     physical_metric_exists = metric_column in columns
-    time_column = find_time_column(dataframe)
+    resolved_time_column = (
+        time_column if time_column and time_column in columns else find_time_column(dataframe)
+    )
 
     mart_results["mart_question_answer"] = build_question_answer_mart(
         dataframe=dataframe,
@@ -684,13 +751,13 @@ def _build_available_marts(
             project_root=project_root,
         )
 
-    if time_column is not None:
+    if resolved_time_column is not None:
         mart_results["mart_time_trend"] = build_time_trend_mart(
             dataframe=dataframe,
             metric_column=metric_column,
             aggregation=aggregation,
             ordering=ordering,
-            time_column=time_column,
+            time_column=resolved_time_column,
             project_root=project_root,
         )
 
@@ -1946,6 +2013,18 @@ def _resolve_config_dataset_source(dataset: dict[str, Any]) -> str:
     raise ValueError(f"Dataset config is missing a source reference: {dataset}")
 
 
+def _resolve_local_dataset_source(dataset_source: str, repo_root: Path) -> str:
+    """Resolve relative local dataset paths against *repo_root* when needed."""
+    if dataset_source.startswith(("http://", "https://")):
+        return dataset_source
+    candidate = Path(dataset_source)
+    if not candidate.is_absolute() and not candidate.exists():
+        repo_candidate = (repo_root / candidate).resolve()
+        if repo_candidate.exists():
+            return str(repo_candidate)
+    return dataset_source
+
+
 def _build_generic_multi_dataset_marts(
     dataframe: pd.DataFrame,
     dataset_trend_aggregations: dict[str, str],
@@ -2098,6 +2177,8 @@ def _write_config_project_final_summary_report(
                 },
                 "aggregation_selection_mode": results["aggregation_intent"]["selection_mode"],
                 "primary_kpi": results["kpi_suggestions"]["primary_kpi"],
+                "anomaly_report_v2_path": results["anomaly_framing_v2"]["output_path"],
+                "lineage_html_path": results["lineage_html"]["output_path"],
             }
         )
 

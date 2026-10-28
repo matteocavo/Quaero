@@ -44,4 +44,9 @@ def read_client_paths() -> set[str]:
 
 
 def _param(name: str) -> str:
-    return {"project": "project", "mart": "mart", "runId": "run_id"}.get(name, name)
+    return {
+        "project": "project",
+        "mart": "mart",
+        "runId": "run_id",
+        "uploadId": "upload_id",
+    }.get(name, name)

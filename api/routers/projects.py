@@ -10,6 +10,8 @@ from api.dependencies import get_project_root, require_api_key
 from api.schemas import (
     MartPreviewResponse,
     MartsResponse,
+    ProjectCreateRequest,
+    ProjectCreateResponse,
     ProjectDetailResponse,
     ProjectsResponse,
 )
@@ -18,6 +20,11 @@ from api.services.artifacts import (
     list_projects,
     read_mart_preview,
     read_project_summary,
+)
+from api.services.uploads import (
+    ProjectConflictError,
+    UploadValidationError,
+    create_project_from_upload,
 )
 
 router = APIRouter(
@@ -34,6 +41,36 @@ async def get_projects(
     """List all available generated projects."""
     projects = list_projects(project_root)
     return ProjectsResponse(projects=projects)
+
+
+@router.post(
+    "",
+    response_model=ProjectCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a local Quaero project from an uploaded CSV dataset",
+)
+async def create_project(
+    body: ProjectCreateRequest,
+    project_root: Path = Depends(get_project_root),
+) -> ProjectCreateResponse:
+    """Create a new config-driven Quaero project backed by a validated CSV upload."""
+    try:
+        return create_project_from_upload(project_root=project_root, request=body)
+    except ProjectConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (UploadValidationError, ValueError, PermissionError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/{project}/summary", response_model=ProjectDetailResponse)

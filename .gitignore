@@ -41,3 +41,4 @@ quaero.db
 quaero.db-shm
 quaero.db-wal
 runs/
+uploads/

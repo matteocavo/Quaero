@@ -90,6 +90,16 @@ class RunRequest(BaseModel):
         default=None,
         description="Optional dataset URL to re-run the pipeline against.",
     )
+    metric_column: str | None = Field(
+        default=None,
+        max_length=128,
+        description="Optional explicit metric column override for single-dataset projects.",
+    )
+    dimension_column: str | None = Field(
+        default=None,
+        max_length=128,
+        description="Optional explicit dimension column override for single-dataset projects.",
+    )
 
     @field_validator("question")
     @classmethod
@@ -276,3 +286,64 @@ class LineageResponse(BaseModel):
     edge_count: int
     nodes: list[LineageNode]
     edges: list[LineageEdge]
+
+
+# ---------------------------------------------------------------------------
+# Local CSV Uploads & Project Creation
+# ---------------------------------------------------------------------------
+
+
+class UploadColumnInfo(BaseModel):
+    name: str
+    normalized_name: str
+    dtype: str
+    null_count: int
+    unique_count: int
+    sample_values: list[str]
+
+
+class UploadResponse(BaseModel):
+    upload_id: str
+    original_filename: str
+    size_bytes: int
+    row_count: int
+    column_count: int
+    delimiter: str
+    columns: list[UploadColumnInfo]
+    numeric_columns: list[str]
+    candidate_dimensions: list[str]
+    candidate_time_columns: list[str]
+    created_at: str
+
+
+class UploadsResponse(BaseModel):
+    uploads: list[UploadResponse]
+
+
+class ProjectCreateRequest(BaseModel):
+    project: str = Field(..., min_length=1, max_length=64)
+    upload_id: str = Field(..., min_length=1, max_length=64)
+    question: str = Field(..., min_length=1, max_length=1000)
+    dataset_name: str | None = Field(default=None, max_length=64)
+    metric_column: str | None = Field(default=None, max_length=128)
+    dimension_column: str | None = Field(default=None, max_length=128)
+    time_column: str | None = Field(default=None, max_length=128)
+
+    @field_validator("project", "upload_id", "question")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("field must not be blank")
+        return v.strip()
+
+
+class ProjectCreateResponse(BaseModel):
+    project: str
+    upload_id: str
+    dataset_name: str
+    question: str
+    metric_column: str | None
+    dimension_column: str | None
+    time_column: str | None
+    has_config: bool
+    created_at: str
