@@ -10,6 +10,11 @@ documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/
 Candidate for v0.7.0 - React web app. Not released.
 
 ### Added
+- **CSV analysis workspace** in the web app: after importing a CSV, *Analyze This Dataset* opens a
+  browser-only workspace (preview, data quality, filters, a visual query builder with group-by and
+  count/sum/average/min/max, charts, and CSV/JSON exports). It runs on the uploaded rows only, with file
+  and row limits and clear messages, makes no network requests, and is not the Python pipeline. The path
+  CSV upload -> FastAPI -> pipeline is documented as a known gap and not implemented.
 - **Web app** (`frontend/`, React 19 + TypeScript + Vite + Tailwind): Get Started workflow, in-browser
   CSV import and profiler, overview dashboard, project explorer, pipeline operations, mart explorer,
   quality and anomalies, and a lineage DAG. **Public Demo** (bundled fixtures, no network requests) is
