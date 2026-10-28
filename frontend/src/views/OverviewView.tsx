@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Layers,
   Table,
@@ -21,11 +21,42 @@ export const OverviewView: React.FC = () => {
     setActiveTab,
     selectedProject,
     mode,
+    apiClient,
   } = useApp();
 
-  const isSingleDataset = selectedProject === 'release_impact';
+  const [liveDqScore, setLiveDqScore] = useState<number | null>(null);
+  const [liveAnomalyCount, setLiveAnomalyCount] = useState<number | null>(null);
+
+  const isSingleDataset = currentOverview?.project_mode
+    ? currentOverview.project_mode === 'single_dataset'
+    : selectedProject !== 'global_economic_indicators';
   const hasDQ = currentOverview?.artifacts.data_quality ?? false;
+  const hasAnomalies = currentOverview?.artifacts.anomalies ?? false;
   const isV2Anomalies = isSingleDataset;
+
+  useEffect(() => {
+    if (mode !== 'live' || !selectedProject) {
+      setLiveDqScore(null);
+      setLiveAnomalyCount(null);
+      return;
+    }
+    if (hasDQ) {
+      apiClient
+        .getDataQuality(selectedProject)
+        .then((res) => setLiveDqScore(res.reports[0]?.overall_score ?? null))
+        .catch(() => setLiveDqScore(null));
+    } else {
+      setLiveDqScore(null);
+    }
+    if (hasAnomalies) {
+      apiClient
+        .getAnomalies(selectedProject)
+        .then((res) => setLiveAnomalyCount(res.anomaly_row_count))
+        .catch(() => setLiveAnomalyCount(null));
+    } else {
+      setLiveAnomalyCount(null);
+    }
+  }, [apiClient, hasAnomalies, hasDQ, mode, selectedProject]);
 
   return (
     <div className="space-y-6">
@@ -107,7 +138,11 @@ export const OverviewView: React.FC = () => {
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
             <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {hasDQ ? '93.3%' : '—'}
+              {hasDQ
+                ? liveDqScore !== null
+                  ? `${liveDqScore}%`
+                  : '93.3%'
+                : '—'}
             </span>
             <span className="text-xs text-emerald-600 dark:text-emerald-400">
               {hasDQ ? 'High fidelity' : 'Single-dataset runs only'}
@@ -130,7 +165,13 @@ export const OverviewView: React.FC = () => {
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
             <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {isV2Anomalies ? '1 Flagged' : '2 Flagged'}
+              {mode === 'live' && !hasAnomalies
+                ? '—'
+                : liveAnomalyCount !== null
+                ? `${liveAnomalyCount} Flagged`
+                : isV2Anomalies
+                ? '1 Flagged'
+                : '2 Flagged'}
             </span>
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
               {isV2Anomalies ? 'v2 Framed' : 'v1 Raw'}

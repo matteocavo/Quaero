@@ -47,6 +47,8 @@ export interface MartPreviewResponse {
 export interface RunRequest {
   question: string;
   source_url?: string;
+  metric_column?: string | null;
+  dimension_column?: string | null;
 }
 
 export interface RunAcceptedResponse {
@@ -169,6 +171,59 @@ export interface LineageResponse {
   edge_count: number;
   nodes: LineageNode[];
   edges: LineageEdge[];
+}
+
+// ---------------------------------------------------------------------------
+// Local CSV Uploads & Project Creation (FastAPI — Local Operations mode)
+// ---------------------------------------------------------------------------
+
+export interface UploadColumnInfo {
+  name: string;
+  normalized_name: string;
+  dtype: string;
+  null_count: number;
+  unique_count: number;
+  sample_values: string[];
+}
+
+export interface UploadResponse {
+  upload_id: string;
+  original_filename: string;
+  size_bytes: number;
+  row_count: number;
+  column_count: number;
+  delimiter: string;
+  columns: UploadColumnInfo[];
+  numeric_columns: string[];
+  candidate_dimensions: string[];
+  candidate_time_columns: string[];
+  created_at: string;
+}
+
+export interface UploadsResponse {
+  uploads: UploadResponse[];
+}
+
+export interface ProjectCreateRequest {
+  project: string;
+  upload_id: string;
+  question: string;
+  dataset_name?: string | null;
+  metric_column?: string | null;
+  dimension_column?: string | null;
+  time_column?: string | null;
+}
+
+export interface ProjectCreateResponse {
+  project: string;
+  upload_id: string;
+  dataset_name: string;
+  question: string;
+  metric_column: string | null;
+  dimension_column: string | null;
+  time_column: string | null;
+  has_config: boolean;
+  created_at: string;
 }
 
 export interface MetricDefinition {

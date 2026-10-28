@@ -170,7 +170,7 @@ describe('endpoint allowlist', () => {
       ['DELETE', '/api/projects'],
       ['PUT', '/api/projects/demo/run'],
       ['GET', '/api/projects/demo/run'],
-      ['POST', '/api/projects'],
+      ['POST', '/api/projects/demo/overview'],
     ]) {
       const res = await raw(method, requestPath, { 'Content-Length': '0' });
       expect(res.status).toBe(405);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ALLOWED_ROUTES,
   MAX_BODY_BYTES,
+  MAX_UPLOAD_BODY_BYTES,
   MAX_QUERY_LENGTH,
   STRIPPED_REQUEST_HEADERS,
   checkProxyRequest,
@@ -13,6 +14,8 @@ const allowed = (method: string, url: string, length?: string) =>
 describe('proxy allowlist', () => {
   it.each([
     ['GET', '/api/health'],
+    ['GET', '/api/uploads'],
+    ['GET', '/api/uploads/upload_a1b2c3d4e5f6'],
     ['GET', '/api/projects'],
     ['GET', '/api/projects/release_impact/overview'],
     ['GET', '/api/projects/release_impact/summary'],
@@ -27,12 +30,14 @@ describe('proxy allowlist', () => {
     expect(allowed(method, url)).toBe(true);
   });
 
-  it('forwards a small run request', () => {
+  it('forwards small run, project creation, and upload requests', () => {
     expect(allowed('POST', '/api/projects/release_impact/run', '120')).toBe(true);
+    expect(allowed('POST', '/api/projects', '250')).toBe(true);
+    expect(allowed('POST', '/api/uploads', '4096')).toBe(true);
   });
 
   it('only exposes endpoints the frontend uses', () => {
-    expect(ALLOWED_ROUTES).toHaveLength(6);
+    expect(ALLOWED_ROUTES).toHaveLength(10);
   });
 
   it.each([
@@ -64,10 +69,11 @@ describe('proxy allowlist', () => {
     if (!verdict.allowed) expect(verdict.status).toBe(405);
   });
 
-  it('does not allow GET on the run endpoint or POST on reads', () => {
+  it('does not allow GET on the run endpoint or POST on read-only endpoints', () => {
     expect(allowed('GET', '/api/projects/x/run')).toBe(false);
-    expect(allowed('POST', '/api/projects')).toBe(false);
+    expect(allowed('POST', '/api/projects')).toBe(false); // missing content-length
     expect(allowed('POST', '/api/projects/x/overview', '10')).toBe(false);
+    expect(allowed('POST', '/api/uploads/upload_1234567890ab', '10')).toBe(false);
   });
 
   it('rejects oversized or unsized POST bodies', () => {
@@ -77,6 +83,9 @@ describe('proxy allowlist', () => {
     expect(allowed('POST', '/api/projects/x/run')).toBe(false);
     expect(allowed('POST', '/api/projects/x/run', 'abc')).toBe(false);
     expect(allowed('POST', '/api/projects/x/run', String(MAX_BODY_BYTES))).toBe(true);
+    expect(allowed('POST', '/api/projects', String(MAX_BODY_BYTES + 1))).toBe(false);
+    expect(allowed('POST', '/api/uploads', String(MAX_UPLOAD_BODY_BYTES))).toBe(true);
+    expect(allowed('POST', '/api/uploads', String(MAX_UPLOAD_BODY_BYTES + 1))).toBe(false);
   });
 
   it('rejects very long query strings', () => {

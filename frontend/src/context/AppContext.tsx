@@ -4,6 +4,7 @@ import {
   NavigationTab,
   ProjectSummary,
   ProjectOverviewResponse,
+  UploadResponse,
 } from '../types/api';
 import { QuaeroApiClient, ApiError } from '../services/apiClient';
 import { buildDataset } from '../analysis/dataset';
@@ -45,8 +46,12 @@ interface AppContextType {
   flashMessage: { text: string; type: 'success' | 'info' | 'error' } | null;
   showFlash: (text: string, type?: 'success' | 'info' | 'error') => void;
   clearFlash: () => void;
-  refreshProjects: () => Promise<void>;
+  refreshProjects: (preferredProject?: string) => Promise<void>;
   refreshOverview: () => Promise<void>;
+  uploads: UploadResponse[];
+  selectedUploadId: string | null;
+  setSelectedUploadId: (uploadId: string | null) => void;
+  refreshUploads: () => Promise<UploadResponse[]>;
   testLiveConnection: () => Promise<boolean>;
   activeDatasetProfile: DatasetProfile | null;
   loadSampleDataset: (sampleType?: 'release_impact' | 'global_indicators') => void;
@@ -119,6 +124,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedProject, setSelectedProjectRaw] = useState<string>('release_impact');
   const [browserWorkspaceActive, setBrowserWorkspaceActive] = useState<boolean>(false);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [uploads, setUploads] = useState<UploadResponse[]>([]);
+  const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
   const [currentOverview, setCurrentOverview] = useState<ProjectOverviewResponse | null>(null);
   const [loadingOverview, setLoadingOverview] = useState<boolean>(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'checking' | 'disconnected' | 'demo'>('demo');
@@ -273,6 +280,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     apiClient.setMode(newMode);
     // Never carry data from the other mode over (demo fixtures must not appear in Live).
     setProjects([]);
+    setUploads([]);
+    setSelectedUploadId(null);
     setCurrentOverview(null);
     if (newMode === 'demo') {
       setConnectionStatus('demo');
@@ -305,11 +314,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [localAvailable]);
 
   // Load projects list
-  const refreshProjects = useCallback(async () => {
+  const refreshProjects = useCallback(async (preferredProject?: string) => {
     try {
       const res = await apiClient.listProjects();
       setProjects(res.projects);
-      if (res.projects.length > 0 && !res.projects.some((p) => p.project === selectedProject)) {
+      const target = preferredProject || selectedProject;
+      if (preferredProject && res.projects.some((p) => p.project === preferredProject)) {
+        setSelectedProjectRaw(preferredProject);
+        setBrowserWorkspaceActive(false);
+      } else if (res.projects.length > 0 && !res.projects.some((p) => p.project === target)) {
         setSelectedProjectRaw(res.projects[0].project);
       }
     } catch (err: any) {
@@ -323,6 +336,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
   }, [apiClient, mode, selectedProject, showFlash]);
+
+  const refreshUploads = useCallback(async (): Promise<UploadResponse[]> => {
+    if (mode !== 'live') {
+      setUploads([]);
+      return [];
+    }
+    try {
+      const res = await apiClient.listUploads();
+      setUploads(res.uploads);
+      if (res.uploads.length > 0 && !selectedUploadId) {
+        setSelectedUploadId(res.uploads[0].upload_id);
+      }
+      return res.uploads;
+    } catch {
+      return [];
+    }
+  }, [apiClient, mode, selectedUploadId]);
 
   // Load overview for currently selected project
   const refreshOverview = useCallback(async () => {
@@ -349,13 +379,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       testLiveConnection().then((connected) => {
         if (connected) {
           refreshProjects();
+          refreshUploads();
         }
       });
     } else {
       setConnectionStatus('demo');
       refreshProjects();
     }
-  }, [mode, testLiveConnection, refreshProjects]);
+  }, [mode, testLiveConnection, refreshProjects, refreshUploads]);
 
   useEffect(() => {
     refreshOverview();
@@ -388,6 +419,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearFlash,
     refreshProjects,
     refreshOverview,
+    uploads,
+    selectedUploadId,
+    setSelectedUploadId,
+    refreshUploads,
     testLiveConnection,
     activeDatasetProfile,
     loadSampleDataset,

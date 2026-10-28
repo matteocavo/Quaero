@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "start:local": "powershell -ExecutionPolicy Bypass -File ../scripts/start-local.ps1",
     "build": "tsc && vite build",
     "build:pages": "node scripts/build-pages.mjs",
     "preview": "vite preview",
@@ -12,6 +13,7 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:local": "playwright test --config=playwright.local.config.ts",
     "check:bundle": "node scripts/check-bundle-secrets.mjs"
   },
   "dependencies": {

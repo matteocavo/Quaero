@@ -11,12 +11,24 @@ const ID = '[A-Za-z0-9_-]+';
 interface Route {
   method: 'GET' | 'POST';
   pattern: RegExp;
+  maxBodyBytes?: number;
 }
+
+export const API_PREFIX = '/api';
+export const MAX_QUERY_LENGTH = 256;
+/** The run and project-create request bodies are short JSON documents. */
+export const MAX_BODY_BYTES = 8 * 1024;
+/** Multipart CSV uploads are bounded to 10 MiB plus multipart framing overhead. */
+export const MAX_UPLOAD_BODY_BYTES = 11 * 1024 * 1024;
 
 /** Every Quaero API endpoint the frontend calls (see src/services/apiClient.ts). */
 export const ALLOWED_ROUTES: readonly Route[] = [
   { method: 'GET', pattern: /^\/health$/ },
+  { method: 'GET', pattern: /^\/uploads$/ },
+  { method: 'GET', pattern: new RegExp(`^/uploads/${ID}$`) },
+  { method: 'POST', pattern: /^\/uploads$/, maxBodyBytes: MAX_UPLOAD_BODY_BYTES },
   { method: 'GET', pattern: /^\/projects$/ },
+  { method: 'POST', pattern: /^\/projects$/, maxBodyBytes: MAX_BODY_BYTES },
   {
     method: 'GET',
     pattern: new RegExp(
@@ -25,13 +37,8 @@ export const ALLOWED_ROUTES: readonly Route[] = [
   },
   { method: 'GET', pattern: new RegExp(`^/projects/${ID}/marts/${ID}$`) },
   { method: 'GET', pattern: new RegExp(`^/projects/${ID}/runs/${ID}$`) },
-  { method: 'POST', pattern: new RegExp(`^/projects/${ID}/run$`) },
+  { method: 'POST', pattern: new RegExp(`^/projects/${ID}/run$`), maxBodyBytes: MAX_BODY_BYTES },
 ];
-
-export const API_PREFIX = '/api';
-export const MAX_QUERY_LENGTH = 256;
-/** The run request body is a short JSON document (question + optional URL). */
-export const MAX_BODY_BYTES = 8 * 1024;
 
 /** Request headers the browser must never be able to forward to the API. */
 export const STRIPPED_REQUEST_HEADERS = ['x-api-key', 'authorization', 'cookie'] as const;
@@ -71,13 +78,15 @@ export function checkProxyRequest(
   }
 
   const verb = (method ?? '').toUpperCase();
-  if (!matching.some((route) => route.method === verb)) {
+  const methodMatch = matching.find((route) => route.method === verb);
+  if (!methodMatch) {
     return { allowed: false, status: 405, detail: 'Method not allowed for this endpoint.' };
   }
 
   if (verb === 'POST') {
+    const maxBytes = methodMatch.maxBodyBytes ?? MAX_BODY_BYTES;
     const length = Number(Array.isArray(contentLength) ? contentLength[0] : contentLength);
-    if (!Number.isFinite(length) || length > MAX_BODY_BYTES) {
+    if (!Number.isFinite(length) || length > maxBytes) {
       return { allowed: false, status: 413, detail: 'Request body too large.' };
     }
   }
