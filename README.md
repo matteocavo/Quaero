@@ -1,6 +1,3 @@
-<img src="https://matteocavo.github.io/images/quaero.png">
-<img src="https://matteocavo.github.io/images/quaero_info.png">
-
 # Quaero
 
 [![CI](https://github.com/matteocavo/Quaero/actions/workflows/pipeline_ci.yml/badge.svg)](https://github.com/matteocavo/Quaero/actions/workflows/pipeline_ci.yml)
@@ -9,6 +6,17 @@
 
 Quaero is a question-driven analytics pipeline that converts raw datasets
 into clean analytical marts, semantic metrics, and dashboard-ready outputs.
+
+**[Try the browser-only demo](https://matteocavo.github.io/Quaero/)** ·
+[Run locally](frontend/README.md) · [Reproduce the sample pipeline](REPRODUCIBILITY.md) ·
+[Architecture](ARCHITECTURE.md)
+
+The public demo uses bundled illustrative data and browser CSV analysis. Running
+the Python pipeline, persistent projects and Parquet/SQL exports requires Local
+Operations on your own machine; the public demo does not run a remote backend.
+
+<img src="https://matteocavo.github.io/images/quaero.png" alt="Quaero interface preview">
+<img src="https://matteocavo.github.io/images/quaero_info.png" alt="Quaero project overview">
 
 ## Why Quaero Exists
 
@@ -645,3 +653,5 @@ Copyright (c) 2026 Matteo Cavo. See [LICENSE](LICENSE).
 
 Third-party libraries and external datasets remain subject to their respective upstream terms.
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+If Quaero helps make your data preparation more traceable, consider starring the repository.
