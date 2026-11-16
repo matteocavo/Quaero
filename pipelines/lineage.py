@@ -161,9 +161,15 @@ def _resolve_source_column(mart_column: str, staging_columns: list[str]) -> str 
     The semantic metric convention (``<aggregation>_<source column>``) is authoritative
     when it names a staging column. Otherwise fall back to the name heuristic, choosing
     the *longest* contained staging name so that ``release_year`` wins over ``year``.
+    Semantic metrics that declare no source column (``record_count``) are never
+    attributed to a physical column.
     """
     parsed = parse_semantic_metric_column(mart_column)
-    if parsed and parsed["source_column"] in staging_columns:
-        return parsed["source_column"]
+    if parsed is not None:
+        source_column = parsed["source_column"]
+        if source_column is None:
+            return None
+        if source_column in staging_columns:
+            return source_column
     candidates = [c for c in staging_columns if c in mart_column]
     return max(candidates, key=len) if candidates else None
