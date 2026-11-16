@@ -148,3 +148,13 @@ class TestAmbiguousColumnNames:
     def test_no_edge_when_nothing_matches(self, tmp_path):
         edges = self._mart_edges(tmp_path, ["streams"], ["record_count"])
         assert "mart::m::record_count" not in edges
+
+    def test_record_count_is_never_attributed_to_a_physical_column(self, tmp_path):
+        # record_count has no source column in the semantic contract; the substring
+        # fallback used to attribute it to "record" (or "count") when such a column exists.
+        edges = self._mart_edges(tmp_path, ["record", "count"], ["record_count"])
+        assert "mart::m::record_count" not in edges
+
+    def test_record_count_not_attributed_with_only_a_count_column(self, tmp_path):
+        edges = self._mart_edges(tmp_path, ["count", "streams"], ["record_count"])
+        assert "mart::m::record_count" not in edges
