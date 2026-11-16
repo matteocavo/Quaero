@@ -28,6 +28,7 @@ from typing import Any
 
 import pandas as pd
 
+from kpi_engine.semantic_contract import parse_semantic_metric_column
 from pipelines.utils import normalize_name, resolve_project_root
 
 LOGGER = logging.getLogger(__name__)
@@ -124,18 +125,15 @@ def build_lineage(
             if col in staging_cols:
                 edges.append({"from": f"staging::{col}", "to": node_id, "type": "passthrough"})
             else:
-                # Heuristic: find a staging column whose name is a substring of this mart column
-                # e.g. staging::streams → mart::release_impact::avg_streams
-                for s_col in staging_cols:
-                    if s_col in col:
-                        edges.append(
-                            {
-                                "from": f"staging::{s_col}",
-                                "to": node_id,
-                                "type": "aggregated",
-                            }
-                        )
-                        break
+                s_col = _resolve_source_column(col, staging_cols)
+                if s_col is not None:
+                    edges.append(
+                        {
+                            "from": f"staging::{s_col}",
+                            "to": node_id,
+                            "type": "aggregated",
+                        }
+                    )
 
     lineage: dict[str, Any] = {
         "source": normalize_name(source_name),
@@ -155,3 +153,17 @@ def build_lineage(
     )
 
     return {**lineage, "output_path": output_path.relative_to(root_dir).as_posix()}
+
+
+def _resolve_source_column(mart_column: str, staging_columns: list[str]) -> str | None:
+    """Pick the staging column a derived mart column comes from.
+
+    The semantic metric convention (``<aggregation>_<source column>``) is authoritative
+    when it names a staging column. Otherwise fall back to the name heuristic, choosing
+    the *longest* contained staging name so that ``release_year`` wins over ``year``.
+    """
+    parsed = parse_semantic_metric_column(mart_column)
+    if parsed and parsed["source_column"] in staging_columns:
+        return parsed["source_column"]
+    candidates = [c for c in staging_columns if c in mart_column]
+    return max(candidates, key=len) if candidates else None

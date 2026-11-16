@@ -112,3 +112,39 @@ class TestBuildLineage:
         staging_node_names = [n["name"] for n in result["nodes"] if n["layer"] == "staging"]
         assert "has_nulls" not in staging_node_names
         assert "revenue" in staging_node_names
+
+
+class TestAmbiguousColumnNames:
+    @staticmethod
+    def _mart_edges(tmp_path, staging_cols, mart_cols):
+        staging = pd.DataFrame({c: [1, 2] for c in staging_cols})
+        mart = pd.DataFrame({c: [1.0] for c in mart_cols})
+        result = build_lineage(
+            raw_columns=list(staging_cols),
+            staging_dataframe=staging,
+            marts={"m": mart},
+            cleaning_log=_make_cleaning_log(),
+            source_name="test",
+            project_root=tmp_path,
+        )
+        return {e["to"]: e["from"] for e in result["edges"] if e["to"].startswith("mart::")}
+
+    def test_semantic_name_wins_over_shorter_substring(self, tmp_path):
+        edges = self._mart_edges(tmp_path, ["year", "release_year"], ["avg_release_year"])
+        assert edges["mart::m::avg_release_year"] == "staging::release_year"
+
+    def test_column_order_does_not_change_result(self, tmp_path):
+        edges = self._mart_edges(tmp_path, ["release_year", "year"], ["avg_release_year"])
+        assert edges["mart::m::avg_release_year"] == "staging::release_year"
+
+    def test_shorter_source_still_resolves_when_it_is_the_source(self, tmp_path):
+        edges = self._mart_edges(tmp_path, ["year", "release_year"], ["avg_year"])
+        assert edges["mart::m::avg_year"] == "staging::year"
+
+    def test_fallback_prefers_longest_contained_name(self, tmp_path):
+        edges = self._mart_edges(tmp_path, ["year", "release_year"], ["release_year_growth"])
+        assert edges["mart::m::release_year_growth"] == "staging::release_year"
+
+    def test_no_edge_when_nothing_matches(self, tmp_path):
+        edges = self._mart_edges(tmp_path, ["streams"], ["record_count"])
+        assert "mart::m::record_count" not in edges
