@@ -35,11 +35,13 @@ The example uses the
 (about 86,000 rows, 13 columns). Its repository lists the data as ODC-PDDL.
 The underlying IATA/ICAO code lists may carry their own terms, so check them
 before redistributing outputs. The file is downloaded at run time and is not
-stored in this repository.
+stored in this repository. The URL is pinned to upstream commit `0ebaf2a`
+(2026-11-06) because the upstream file is updated regularly; with `main` the
+numbers below may drift.
 
 ```bash
 python -m app.main \
-  "https://raw.githubusercontent.com/datasets/airport-codes/main/data/airport-codes.csv" \
+  "https://raw.githubusercontent.com/datasets/airport-codes/0ebaf2a8ab955eb542f84b7b5960ecf563f64edc/data/airport-codes.csv" \
   --source-name airports \
   --question "Which airport types have the highest average elevation_ft?" \
   --project-root .
@@ -56,7 +58,7 @@ a direct pandas calculation:
 ```python
 import pandas as pd
 
-url = "https://raw.githubusercontent.com/datasets/airport-codes/main/data/airport-codes.csv"
+url = "https://raw.githubusercontent.com/datasets/airport-codes/0ebaf2a8ab955eb542f84b7b5960ecf563f64edc/data/airport-codes.csv"
 df = pd.read_csv(url)
 
 mart = pd.read_parquet("projects/airports/marts/mart_question_answer.parquet")
@@ -66,7 +68,7 @@ print(mart.head(3))
 print(check.head(3))
 ```
 
-Values observed on 2026-11-20 (the upstream file can change, so later runs may differ):
+Values observed on 2026-11-20 with the pinned file (86,343 rows, 13 columns):
 
 | type | `record_count` in mart | mean `elevation_ft` |
 | --- | --- | --- |
@@ -139,8 +141,12 @@ python -m app.main "path/to/your_file.csv" \
   --project-root .
 ```
 
-- Name real column names in the question so Quaero can map them.
-- If it picks the wrong column, set `--metric-column` and/or `--dimension-column`.
+- Name real column names in the question so Quaero can map them. Only average, sum
+  and count over one measure and one grouping are supported; questions such as
+  medians, filters ("only North") or comparing two values are refused with a reason
+  (see the README, "How a question is read").
+- If it picks the wrong column, set `--metric-column` and/or `--dimension-column`;
+  they override the wording of the question.
 - Then repeat steps 3 to 5 on your own output: compare one mart with pandas,
   read the quality scores, and check the lineage.
 
