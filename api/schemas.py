@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -507,3 +507,120 @@ class CleanupResponse(BaseModel):
     freed_bytes: int
     skipped: list[CleanupSkipped]
     message: str
+
+
+# ---------------------------------------------------------------------------
+# Human review (v0.9)
+# ---------------------------------------------------------------------------
+
+ReviewStatus = Literal["REVIEW_REQUIRED", "ACCEPTED", "CORRECTED", "REJECTED"]
+
+
+class ReviewSyncRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    project: str = Field(min_length=1, max_length=128)
+
+
+class ReviewSyncResponse(BaseModel):
+    project: str
+    run_id: str
+    created: int
+    existing: int
+    active_rules: list[str]
+
+
+class ReviewItem(BaseModel):
+    id: int
+    project: str
+    run_id: str
+    kind: Literal["anomaly", "dq"]
+    ref: str
+    rule_id: str
+    status: ReviewStatus
+    superseded: bool
+    snapshot_verified: bool  # stored snapshot_sha256 matches the recomputed canonical hash
+    artifact_provenance_verified: bool  # artifact fingerprint is recorded for the run
+    created_at: str
+    updated_at: str
+
+
+class ReviewCorrection(BaseModel):
+    field: str
+    from_value: Any = None
+    to_value: Any = None
+    justification: str | None = None
+
+
+class ReviewItemDetail(ReviewItem):
+    original: dict[str, Any]
+    effective: dict[str, Any]
+    correction: ReviewCorrection | None = None
+    artifact_sha256: str
+
+
+class ReviewItemList(BaseModel):
+    items: list[ReviewItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class ReviewCorrectionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    field: str = Field(min_length=1, max_length=40)
+    to_value: Any
+    justification: str | None = Field(default=None, max_length=1000)
+
+
+class ReviewDecisionRequest(BaseModel):
+    # extra=forbid: clients cannot send reviewer_source or any other server-owned field
+    model_config = ConfigDict(extra="forbid")
+    decision: Literal["ACCEPTED", "CORRECTED", "REJECTED"]
+    reviewer: str
+    reason: str | None = None
+    correction: ReviewCorrectionInput | None = None
+    expected_status: Literal["REVIEW_REQUIRED", "CORRECTED"]
+    client_request_id: str = Field(pattern=r"^[A-Za-z0-9_.:-]{8,64}$")
+
+    @field_validator("reviewer")
+    @classmethod
+    def _reviewer(cls, v: str) -> str:
+        v = v.strip()
+        if not 1 <= len(v) <= 80 or any(ord(c) < 32 or ord(c) == 127 for c in v):
+            raise ValueError("reviewer must be 1-80 chars with no control characters")
+        return v
+
+    @field_validator("reason")
+    @classmethod
+    def _reason(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if len(v) > 1000:
+            raise ValueError("reason must be at most 1000 characters")
+        return v or None
+
+    @model_validator(mode="after")
+    def _consistency(self) -> ReviewDecisionRequest:
+        if self.decision in ("CORRECTED", "REJECTED") and not self.reason:
+            raise ValueError("reason is required for CORRECTED and REJECTED")
+        if (self.decision == "CORRECTED") != (self.correction is not None):
+            raise ValueError("correction is required if and only if decision is CORRECTED")
+        return self
+
+
+class ReviewEvent(BaseModel):
+    id: int
+    item_id: int
+    from_status: ReviewStatus
+    to_status: ReviewStatus
+    reviewer: str
+    reviewer_source: Literal["declared"]
+    reason: str | None = None
+    at: str
+
+
+class ReviewDecisionResponse(BaseModel):
+    item: ReviewItemDetail
+    event: ReviewEvent
+    replayed: bool = False

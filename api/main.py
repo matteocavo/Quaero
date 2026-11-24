@@ -49,7 +49,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routers import health, projects, reports, runs, storage, uploads
+from api.routers import health, projects, reports, review, runs, storage, uploads
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -116,6 +116,7 @@ app.include_router(runs.router)
 app.include_router(reports.router)
 app.include_router(uploads.router)
 app.include_router(storage.router)
+app.include_router(review.router)
 
 # ---------------------------------------------------------------------------
 # Exception handlers

@@ -46,11 +46,11 @@ def _legacy_rows(path):
         ]
 
 
-def test_fresh_db_reaches_v2(tmp_path):
+def test_fresh_db_reaches_current(tmp_path):
     db = tmp_path / "a.db"
     store.init_db(db)
     assert V2_TABLES <= _tables(db)
-    assert _version(db) == 2
+    assert _version(db) == store._SCHEMA_VERSION == 3
 
 
 def test_v1_fixture_upgrades_without_touching_legacy_rows(tmp_path):
@@ -58,7 +58,7 @@ def test_v1_fixture_upgrades_without_touching_legacy_rows(tmp_path):
     _make_v1(db)
     before = _legacy_rows(db)
     store.init_db(db)
-    assert _version(db) == 2
+    assert _version(db) == store._SCHEMA_VERSION == 3
     assert V2_TABLES <= _tables(db)
     assert _legacy_rows(db) == before
 
@@ -69,7 +69,7 @@ def test_rerun_is_noop(tmp_path):
     store.init_db(db)
     store.init_db(db)
     with sqlite3.connect(db) as c:
-        assert c.execute("SELECT COUNT(*) FROM schema_version WHERE version=2").fetchone()[0] == 1
+        assert c.execute("SELECT COUNT(*) FROM schema_version WHERE version=3").fetchone()[0] == 1
 
 
 def test_mid_migration_failure_rolls_back_to_valid_v1(tmp_path, monkeypatch):
@@ -89,7 +89,66 @@ def test_mid_migration_failure_rolls_back_to_valid_v1(tmp_path, monkeypatch):
     assert _legacy_rows(db) == before
     monkeypatch.undo()
     store.init_db(db)  # retry succeeds
-    assert _version(db) == 2
+    assert _version(db) == store._SCHEMA_VERSION == 3
+
+
+def _make_v2_with_item(path):
+    """A genuine v2 database: v1 + v2 migration only, holding one legacy review item."""
+    _make_v1(path)
+    c = sqlite3.connect(path)
+    store._apply_migration_v2(c)
+    c.execute("INSERT INTO schema_version VALUES (2, '2026-02-01T00:00:00')")
+    c.execute(
+        "INSERT INTO review_items(project, run_id, kind, ref, original_json, artifact_sha256,"
+        " created_at, updated_at) VALUES ('p','r1','dq','c','{\"column\": \"c\"}','h','t','t')"
+    )
+    c.commit()
+    c.close()
+
+
+def _item_rows(path):
+    with sqlite3.connect(path) as c:
+        return c.execute(
+            "SELECT id, project, run_id, kind, ref, original_json, artifact_sha256, status"
+            " FROM review_items"
+        ).fetchall()
+
+
+def test_v2_upgrades_to_v3_keeping_legacy_items_unhashed(tmp_path):
+    db = tmp_path / "v2.db"
+    _make_v2_with_item(db)
+    before = _item_rows(db)
+    assert "snapshot_sha256" not in {
+        r[1] for r in sqlite3.connect(db).execute("PRAGMA table_info(review_items)")
+    }
+    store.init_db(db)
+    assert _version(db) == 3
+    assert _item_rows(db) == before  # untouched
+    with sqlite3.connect(db) as c:
+        # no retroactive hash: origin of a pre-v3 snapshot cannot be guaranteed
+        assert c.execute("SELECT snapshot_sha256 FROM review_items").fetchone()[0] is None
+    store.init_db(db)  # idempotent
+    with sqlite3.connect(db) as c:
+        assert c.execute("SELECT COUNT(*) FROM schema_version WHERE version=3").fetchone()[0] == 1
+    assert _item_rows(db) == before
+
+
+def test_v3_migration_is_safe_when_column_already_exists(tmp_path):
+    db = tmp_path / "v2.db"
+    _make_v2_with_item(db)
+    with sqlite3.connect(db) as c:
+        store._apply_migration_v3(c)
+        store._apply_migration_v3(c)  # re-applied: no duplicate-column error
+
+
+def test_snapshot_hash_is_immutable_after_v3(tmp_path):
+    db = tmp_path / "v2.db"
+    _make_v2_with_item(db)
+    store.init_db(db)
+    with sqlite3.connect(db) as c, pytest.raises(sqlite3.IntegrityError):
+        c.execute("UPDATE review_items SET snapshot_sha256 = 'x'")
+    with sqlite3.connect(db) as c:  # status is still mutable
+        c.execute("UPDATE review_items SET status='ACCEPTED'")
 
 
 def test_newer_db_is_refused(tmp_path):

@@ -104,7 +104,7 @@ Option A stays a documented future hardening (a later minor), not a v0.9.0 prere
    - a run is QUEUED/RUNNING for the project → `409 run_active`;
    - artifact missing/unreadable → `409 artifact_unavailable`.
    Error bodies state the cause and the remedy (re-run the project); they contain no paths or SQL.
-5. *Immutable snapshots.* `original_json` and `artifact_sha256` are stored at item creation and protected by triggers (no UPDATE/DELETE of identity or snapshot columns). The stored hash is the SHA-256 of the **artifact file bytes** from which the item was derived; `GET /review/items/{id}` re-verifies `original_json` against a stored `snapshot_sha256` (hash of the canonical snapshot) and reports `snapshot_verified: true|false`. A later overwrite of the artifact never alters an acquired item.
+5. *Immutable snapshots.* `original_json` and `artifact_sha256` are stored at item creation and protected by triggers (no UPDATE/DELETE of identity or snapshot columns). The stored hash is the SHA-256 of the **artifact file bytes** from which the item was derived; `GET /review/items/{id}` re-verifies `original_json` against a stored `snapshot_sha256` (hash of the canonical snapshot) and reports `snapshot_verified: true|false` (recomputed canonical hash equals the stored one; legacy NULL → false). `snapshot_verified` covers snapshot integrity only; the separate `artifact_provenance_verified` reports whether the artifact fingerprint is recorded in `run_artifacts`. **Multi-source runs:** when a run holds more than one artifact of a kind, `ref` is namespaced `{source}::{ref}` so equal column names from different datasets stay distinct items; single-artifact runs keep plain refs. A later overwrite of the artifact never alters an acquired item.
 6. *What is and is not guaranteed.* **Guaranteed:** no Quaero entrypoint (API, CLI, direct call) can write a project's artifacts while another holds the lease; the fingerprint is taken inside the lease from the bytes the run just produced; sync reads and hashes the same bytes under the lease. **Not prevented, but detected:** a non-Quaero process (manual edit, sync client, script) writing a file *outside* the lease is caught as `artifact_changed` if it happens after fingerprinting; a non-Quaero write *during* a run, before fingerprinting, cannot be distinguished from the run's output (out of scope, stated in the docs). **Hardening (optional, in PR 1 if cheap):** store the fingerprinted bytes as a content-addressed blob so provenance does not depend on the mutable file.
 7. *Out of scope here.* Smart Data Onboarding / Multi-dataset Import and workspace deletion are **separate future plans** and are not designed or started by this one.
 
@@ -126,7 +126,7 @@ Items from an older run keep their status and are shown as **superseded** (deriv
 
 ### 4.1 Migration runner
 
-`_SCHEMA_VERSION = 2`. `init_db` changes from "stamp if absent" to:
+`_SCHEMA_VERSION = 3` (v2: review tables + `run_artifacts`; v3: additive `review_items.snapshot_sha256`, guarded `ADD COLUMN`, trigger recreated with the column; legacy rows keep NULL and are never backfilled, since their origin cannot be guaranteed). `init_db` changes from "stamp if absent" to:
 
 1. Read `MAX(version)` from `schema_version` (none → fresh DB).
 2. Fresh DB: apply base DDL + all migrations, stamp 2.
@@ -188,7 +188,7 @@ CREATE TRIGGER IF NOT EXISTS review_corrections_no_update BEFORE UPDATE ON revie
 CREATE TRIGGER IF NOT EXISTS review_corrections_no_delete BEFORE DELETE ON review_corrections
   BEGIN SELECT RAISE(ABORT,'review_corrections is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS review_items_immutable_identity BEFORE UPDATE OF
-  project, run_id, kind, ref, rule_id, original_json, artifact_sha256, created_at ON review_items
+  project, run_id, kind, ref, rule_id, original_json, artifact_sha256, snapshot_sha256, created_at ON review_items
   BEGIN SELECT RAISE(ABORT,'review item identity and original are immutable'); END;
 ```
 
@@ -281,7 +281,7 @@ Cross-field validation (model validator → **422**): `reason` required (non-bla
 One SQLite transaction (`BEGIN IMMEDIATE`):
 
 1. Load item (absent → 404).
-2. **Idempotent replay:** if an event exists with `(item_id, client_request_id)` → return 200 with the *original* result; nothing written.
+2. **Idempotent replay:** if an event exists with `(item_id, client_request_id)` **and** the request is semantically identical (decision, `expected_status`, reviewer, reason and correction payload) → return 200 with the *original* result; nothing written. Same id with any different field → 409 `request_id_conflict`, no change to state, events or corrections.
 3. If `item.status != expected_status` → **409** `{"code":"stale_status","current":…}`.
 4. If `(item.status → decision)` not in the transition table (§6) → **409** `invalid_transition`.
 5. `UPDATE review_items SET status=?, updated_at=? WHERE id=? AND status=?` — `rowcount == 0` ⇒ lost race ⇒ 409 (same pattern as `transition_run`).
