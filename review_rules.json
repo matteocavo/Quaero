@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "rules": {
+    "R1": {"enabled": true, "description": "v2 anomaly with impact=high"},
+    "R2": {"enabled": false, "description": "v2 anomaly with impact=medium"},
+    "R3": {"enabled": true, "description": "DQ column with outlier_flag=true"},
+    "R4": {
+      "enabled": false,
+      "description": "DQ column with completeness or dq_score below an owner-defined threshold",
+      "completeness_below": null,
+      "dq_score_below": null
+    }
+  }
+}

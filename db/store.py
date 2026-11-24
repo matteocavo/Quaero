@@ -535,3 +535,236 @@ def latest_run_artifact(
             (project, artifact),
         ).fetchone()
     return dict(row) if row else None
+
+
+# ---------------------------------------------------------------------------
+# Human review (v0.9): items, events, corrections
+# ---------------------------------------------------------------------------
+
+REVIEW_TRANSITIONS: dict[str, frozenset[str]] = {
+    "REVIEW_REQUIRED": frozenset({"ACCEPTED", "CORRECTED", "REJECTED"}),
+    "CORRECTED": frozenset({"ACCEPTED", "REJECTED"}),
+    "ACCEPTED": frozenset(),
+    "REJECTED": frozenset(),
+}
+
+
+class ReviewNotFoundError(LookupError):
+    """The review item does not exist."""
+
+
+class ReviewConflictError(RuntimeError):
+    """A review operation conflicts with the current persisted state."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+# Latest completed run of the item's project; an item is superseded when it belongs to another run.
+_LATEST_COMPLETED = (
+    "(SELECT r.run_id FROM runs r WHERE r.project_name = i.project AND r.status = 'COMPLETED' "
+    "ORDER BY r.completed_at DESC, r.rowid DESC LIMIT 1)"
+)
+_ITEM_SELECT = (
+    "SELECT i.*, "
+    f"COALESCE(i.run_id != {_LATEST_COMPLETED}, 0) AS superseded, "
+    "EXISTS(SELECT 1 FROM run_artifacts ra WHERE ra.project = i.project "
+    "AND ra.run_id = i.run_id AND ra.sha256 = i.artifact_sha256) AS snapshot_verified "
+    "FROM review_items i"
+)
+
+
+def latest_completed_run(project: str, db_path: Path | None = None) -> dict[str, Any] | None:
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM runs WHERE project_name = ? AND status = 'COMPLETED' "
+            "ORDER BY completed_at DESC, rowid DESC LIMIT 1",
+            (project,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def run_artifact_names(project: str, run_id: str, db_path: Path | None = None) -> list[str]:
+    """Artifact names a run registered, in stable order."""
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT artifact FROM run_artifacts WHERE project = ? AND run_id = ? "
+            "ORDER BY artifact",
+            (project, run_id),
+        ).fetchall()
+    return [r["artifact"] for r in rows]
+
+
+def insert_review_items(
+    project: str, run_id: str, items: list[dict[str, Any]], db_path: Path | None = None
+) -> tuple[int, int]:
+    """Insert items in ONE transaction, idempotently. Returns (created, existing)."""
+    conn = _connect(db_path or _get_db_path())
+    conn.isolation_level = None
+    created = 0
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            now = _now()
+            for it in items:
+                cur = conn.execute(
+                    "INSERT OR IGNORE INTO review_items"
+                    "(project, run_id, kind, ref, rule_id, original_json, artifact_sha256, "
+                    "status, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'REVIEW_REQUIRED', ?, ?)",
+                    (
+                        project,
+                        run_id,
+                        it["kind"],
+                        it["ref"],
+                        it["rule_id"],
+                        it["original_json"],
+                        it["artifact_sha256"],
+                        now,
+                        now,
+                    ),
+                )
+                created += cur.rowcount
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        conn.close()
+    return created, len(items) - created
+
+
+def list_review_items(
+    project: str | None = None,
+    status: str | None = None,
+    kind: str | None = None,
+    run_id: str | None = None,
+    superseded: bool | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    db_path: Path | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    where, params = [], []
+    for col, val in (
+        ("i.project", project),
+        ("i.status", status),
+        ("i.kind", kind),
+        ("i.run_id", run_id),
+    ):
+        if val is not None:
+            where.append(f"{col} = ?")
+            params.append(val)
+    clause = (" WHERE " + " AND ".join(where)) if where else ""
+    base = f"SELECT * FROM ({_ITEM_SELECT}{clause})"
+    if superseded is not None:
+        base += " WHERE superseded = ?"
+        params.append(1 if superseded else 0)
+    with get_connection(db_path) as conn:
+        total = conn.execute(f"SELECT COUNT(*) FROM ({base})", params).fetchone()[0]
+        rows = conn.execute(
+            f"{base} ORDER BY id DESC LIMIT ? OFFSET ?", (*params, limit, offset)
+        ).fetchall()
+    return [dict(r) for r in rows], total
+
+
+def get_review_item(item_id: int, db_path: Path | None = None) -> dict[str, Any] | None:
+    with get_connection(db_path) as conn:
+        row = conn.execute(f"{_ITEM_SELECT} WHERE i.id = ?", (item_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def list_review_events(item_id: int, db_path: Path | None = None) -> list[dict[str, Any]]:
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, item_id, from_status, to_status, reviewer, reviewer_source, reason, at "
+            "FROM review_events WHERE item_id = ? ORDER BY id",
+            (item_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def latest_review_correction(item_id: int, db_path: Path | None = None) -> dict[str, Any] | None:
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM review_corrections WHERE item_id = ? ORDER BY id DESC LIMIT 1",
+            (item_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def apply_review_decision(
+    item_id: int,
+    to_status: str,
+    expected_status: str,
+    reviewer: str,
+    reason: str | None,
+    client_request_id: str,
+    correction_json: str | None = None,
+    db_path: Path | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Atomically apply one decision. Returns (event, replayed).
+
+    One BEGIN IMMEDIATE transaction: idempotent replay check, expected-status check, transition
+    table, conditional UPDATE (rowcount-checked), event (+ correction) INSERT.
+    """
+    conn = _connect(db_path or _get_db_path())
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            item = conn.execute(
+                "SELECT id, status FROM review_items WHERE id = ?", (item_id,)
+            ).fetchone()
+            if item is None:
+                raise ReviewNotFoundError(f"review item {item_id} not found")
+            prior = conn.execute(
+                "SELECT * FROM review_events WHERE item_id = ? AND client_request_id = ?",
+                (item_id, client_request_id),
+            ).fetchone()
+            if prior is not None:
+                if prior["to_status"] != to_status or prior["reviewer"] != reviewer:
+                    raise ReviewConflictError(
+                        "request_id_conflict",
+                        "client_request_id was already used for a different decision.",
+                    )
+                conn.execute("COMMIT")
+                return dict(prior), True
+            current = item["status"]
+            if current != expected_status:
+                raise ReviewConflictError(
+                    "stale_status",
+                    f"Item is {current}, not {expected_status}; reload and retry.",
+                )
+            if to_status not in REVIEW_TRANSITIONS.get(current, frozenset()):
+                raise ReviewConflictError(
+                    "invalid_transition", f"Transition {current} -> {to_status} is not allowed."
+                )
+            now = _now()
+            cur = conn.execute(
+                "UPDATE review_items SET status = ?, updated_at = ? WHERE id = ? AND status = ?",
+                (to_status, now, item_id, current),
+            )
+            if cur.rowcount != 1:
+                raise ReviewConflictError("stale_status", "Item changed concurrently; reload.")
+            cur = conn.execute(
+                "INSERT INTO review_events(item_id, from_status, to_status, reviewer, "
+                "reviewer_source, reason, client_request_id, at) "
+                "VALUES (?, ?, ?, ?, 'declared', ?, ?, ?)",
+                (item_id, current, to_status, reviewer, reason, client_request_id, now),
+            )
+            event_id = cur.lastrowid
+            if correction_json is not None:
+                conn.execute(
+                    "INSERT INTO review_corrections(item_id, event_id, payload_json, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (item_id, event_id, correction_json, now),
+                )
+            event = conn.execute("SELECT * FROM review_events WHERE id = ?", (event_id,)).fetchone()
+            conn.execute("COMMIT")
+            return dict(event), False
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        conn.close()
