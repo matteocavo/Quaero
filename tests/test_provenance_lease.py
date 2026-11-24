@@ -49,7 +49,7 @@ def _fake_body(release, started, writes=None):
         (meta / ART).write_text(writes or "api-output", encoding="utf-8")
         started.set()
         assert release.wait(10)
-        return {}
+        return {"dq_score": {"output_path": f"projects/demo/metadata/{ART}"}}
 
     return body
 

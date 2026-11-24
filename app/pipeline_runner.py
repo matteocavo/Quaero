@@ -75,7 +75,7 @@ def run_project_from_config(
     _, project_dir = _resolve_project_dir(repo_root=repo_root, source_name=config["project"])
     with project_write_lease(project_dir):
         results = _run_project_from_config_body(config_path, project_root)
-        record_artifacts(project_dir, project_dir.name, run_id)
+        record_artifacts(project_dir, project_dir.name, run_id, results)
     return results
 
 
@@ -492,7 +492,7 @@ def run_pipeline(
             project_root=project_root,
             aggregation=aggregation,
         )
-        record_artifacts(project_dir, project_dir.name, run_id)
+        record_artifacts(project_dir, project_dir.name, run_id, results)
     return results
 
 

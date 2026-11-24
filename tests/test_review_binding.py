@@ -10,6 +10,10 @@ from app import provenance as prov
 from db import store
 
 ART = "dq_score_demo.json"
+RESULTS = {
+    "dq_score": {"output_path": "projects/demo/metadata/dq_score_demo.json"},
+    "anomaly_framing_v2": {"output_path": "projects/demo/metadata/anomaly_report_v2_demo.json"},
+}
 
 
 @pytest.fixture
@@ -27,7 +31,7 @@ def _rows():
 
 
 def test_record_registers_all_artifacts_atomically(proj):
-    assert prov.record_artifacts(proj, "demo", "run-1") is True
+    assert prov.record_artifacts(proj, "demo", "run-1", RESULTS) is True
     rows = _rows()
     assert {r["artifact"] for r in rows} == {ART, "anomaly_report_v2_demo.json"}
     assert all(r["writer"] == "api" and r["run_id"] == "run-1" for r in rows)
@@ -37,7 +41,7 @@ def test_record_registers_all_artifacts_atomically(proj):
 
 
 def test_verified_returns_the_hashed_bytes(proj):
-    prov.record_artifacts(proj, "demo", "run-1")
+    prov.record_artifacts(proj, "demo", "run-1", RESULTS)
     res = prov.check_binding(proj, "demo", ART, "run-1")
     assert res.outcome == prov.VERIFIED
     assert res.data == (proj / "metadata" / ART).read_bytes()
@@ -53,25 +57,25 @@ def test_uninitialised_db_fails_closed(proj, tmp_path, monkeypatch):
 
 
 def test_cli_write_after_api_is_unmanaged(proj):
-    prov.record_artifacts(proj, "demo", "run-1")
-    prov.record_artifacts(proj, "demo", None)
+    prov.record_artifacts(proj, "demo", "run-1", RESULTS)
+    prov.record_artifacts(proj, "demo", None, RESULTS)
     assert store.latest_run_artifact("demo", ART)["run_id"] is None
     assert prov.check_binding(proj, "demo", ART, "run-1").outcome == prov.UNMANAGED_WRITE
 
 
 def test_other_run_is_mismatch(proj):
-    prov.record_artifacts(proj, "demo", "run-2")
+    prov.record_artifacts(proj, "demo", "run-2", RESULTS)
     assert prov.check_binding(proj, "demo", ART, "run-1").outcome == prov.RUN_MISMATCH
 
 
 def test_changed_artifact_detected(proj):
-    prov.record_artifacts(proj, "demo", "run-1")
+    prov.record_artifacts(proj, "demo", "run-1", RESULTS)
     (proj / "metadata" / ART).write_text("tampered", encoding="utf-8")
     assert prov.check_binding(proj, "demo", ART, "run-1").outcome == prov.ARTIFACT_CHANGED
 
 
 def test_missing_artifact_unavailable(proj):
-    prov.record_artifacts(proj, "demo", "run-1")
+    prov.record_artifacts(proj, "demo", "run-1", RESULTS)
     (proj / "metadata" / ART).unlink()
     assert prov.check_binding(proj, "demo", ART, "run-1").outcome == prov.ARTIFACT_UNAVAILABLE
 
@@ -79,12 +83,12 @@ def test_missing_artifact_unavailable(proj):
 def test_edit_before_fingerprint_is_out_of_scope(proj):
     """Documented limit: a non-Quaero edit made BEFORE registration is fingerprinted as-is."""
     (proj / "metadata" / ART).write_text("edited-before", encoding="utf-8")
-    prov.record_artifacts(proj, "demo", "run-1")
+    prov.record_artifacts(proj, "demo", "run-1", RESULTS)
     assert prov.check_binding(proj, "demo", ART, "run-1").outcome == prov.VERIFIED
 
 
 def test_run_active_while_lease_held(proj):
-    prov.record_artifacts(proj, "demo", "run-1")
+    prov.record_artifacts(proj, "demo", "run-1", RESULTS)
     import threading
 
     res = {}
@@ -127,5 +131,5 @@ def test_registration_failure_never_raises(proj, monkeypatch):
         raise sqlite3.OperationalError("disk full")
 
     monkeypatch.setattr(store, "register_run_artifacts", boom)
-    assert prov.record_artifacts(proj, "demo", "run-1") is False
+    assert prov.record_artifacts(proj, "demo", "run-1", RESULTS) is False
     assert prov.check_binding(proj, "demo", ART, "run-1").outcome == prov.BINDING_UNVERIFIABLE

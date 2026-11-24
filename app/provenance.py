@@ -182,15 +182,52 @@ def collect_artifact_paths(project_dir: Path) -> list[Path]:
     return found
 
 
-def record_artifacts(project_dir: str | Path, project: str, run_id: str | None) -> bool:
-    """Fingerprint and register the reviewed artifacts. Call INSIDE the lease. Never raises.
+# Result keys whose stage reports the artifact it wrote this run (and whether it was skipped).
+_PRODUCER_KEYS = ("dq_score", "anomaly_framing_v2")
 
-    ``run_id`` is None for writes not managed by an API run (CLI / direct): they supersede earlier API rows.
+
+def produced_artifact_paths(project_dir: str | Path, results: Any) -> list[Path]:
+    """Artifacts the run itself reports having written (never a directory scan).
+
+    A file merely present in ``metadata/`` proves nothing: a stage can be skipped (e.g. anomaly framing without a
+    v1 report) while a stale file from an older run stays on disk. Only artifacts that the producing stage
+    returned, not skipped, matching the reviewed patterns, and existing inside this project's ``metadata/`` count.
+    """
+    metadata = Path(project_dir) / "metadata"
+    found: list[Path] = []
+    if not isinstance(results, dict):
+        return found
+    for key in _PRODUCER_KEYS:
+        entry = results.get(key)
+        if not isinstance(entry, dict) or entry.get("skipped") or not entry.get("output_path"):
+            continue
+        path = metadata / Path(str(entry["output_path"])).name
+        if any(path.match(pattern) for pattern in ARTIFACT_PATTERNS) and path.is_file():
+            found.append(path)
+    return found
+
+
+def record_artifacts(
+    project_dir: str | Path, project: str, run_id: str | None, results: Any = None
+) -> bool:
+    """Fingerprint and register the artifacts THIS run reported producing. Call INSIDE the lease. Never raises.
+
+    ``results`` is the pipeline result; only artifacts it reports as written are attributed to the run. Zero
+    produced artifacts registers nothing (explicitly logged): older rows stay attributed to their own runs and
+    this run has no verifiable binding. ``run_id`` is None for writes not managed by an API run (CLI / direct).
     All rows are inserted in one transaction, so a partial registration cannot exist. Returns True on success.
     """
     try:
         project_dir = Path(project_dir)
-        rows = [_fingerprint(project_dir, p)[0] for p in collect_artifact_paths(project_dir)]
+        paths = produced_artifact_paths(project_dir, results)
+        if not paths:
+            LOGGER.warning(
+                "run %s of project %s produced no reviewable artifacts: nothing registered (unverifiable)",
+                run_id,
+                project,
+            )
+            return False
+        rows = [_fingerprint(project_dir, p)[0] for p in paths]
         store.init_db()
         store.register_run_artifacts(project, run_id, "api" if run_id else "cli", rows)
         return True
