@@ -8,7 +8,7 @@ Quaero is a question-driven analytics pipeline that converts raw datasets
 into clean analytical marts, semantic metrics, and dashboard-ready outputs.
 
 **[Try the browser-only demo](https://matteocavo.github.io/Quaero/)** ·
-[Run locally](frontend/README.md) · [Reproduce the sample pipeline](REPRODUCIBILITY.md) ·
+[First run walkthrough](WALKTHROUGH.md) · [Run locally](frontend/README.md) · [Reproduce the sample pipeline](REPRODUCIBILITY.md) ·
 [Architecture](ARCHITECTURE.md)
 
 The public demo uses bundled illustrative data and browser CSV analysis. Running
