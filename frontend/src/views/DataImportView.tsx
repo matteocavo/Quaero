@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { APP_VERSION } from '../version';
 import {
   Upload,
   FileSpreadsheet,
@@ -135,7 +136,7 @@ export const DataImportView: React.FC = () => {
       columns: profile.columns,
       analysis_type: 'Browser-Side Local Profile (Not Full Python Pipeline)',
       generated_at: new Date().toISOString(),
-      generator: 'Quaero Web v0.7.0 Browser Profiler',
+      generator: `Quaero Web v${APP_VERSION} Browser Profiler`,
     };
     downloadTextFile(
       `dq_audit_${fileStem(profile.fileName)}.json`,

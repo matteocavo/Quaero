@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_VERSION } from '../version';
 import {
   Sparkles,
   Upload,
@@ -35,7 +36,7 @@ export const HomeView: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center space-x-1.5 rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-xs font-bold text-sky-900 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-300">
                 <Sparkles className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
-                <span>Quaero Web Console v0.7.0</span>
+                <span>Quaero Web Console v{APP_VERSION}</span>
               </span>
               <span className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 font-mono text-xs font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 MIT Open Source
