@@ -11,6 +11,7 @@ from typing import Any
 
 import pandas as pd
 
+from app.provenance import project_write_lease, record_artifacts
 from kpi_engine.analytics_metadata import build_analytics_metadata
 from kpi_engine.anomaly_detection import detect_anomalies
 from kpi_engine.metric_inference import (
@@ -60,6 +61,25 @@ LOGGER = logging.getLogger(__name__)
 
 
 def run_project_from_config(
+    config_path: str | Path,
+    project_root: str | Path | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Run a reusable config-driven project under the project write lease.
+
+    ``run_id`` is set by the API runner; CLI/direct callers leave it None (an unmanaged write). The lease is
+    non-blocking: a concurrent writer raises ``ProjectBusyError`` before any output is touched.
+    """
+    repo_root = resolve_project_root(project_root, __file__)
+    config = _load_project_config(config_path, repo_root)
+    _, project_dir = _resolve_project_dir(repo_root=repo_root, source_name=config["project"])
+    with project_write_lease(project_dir):
+        results = _run_project_from_config_body(config_path, project_root)
+        record_artifacts(project_dir, project_dir.name, run_id)
+    return results
+
+
+def _run_project_from_config_body(
     config_path: str | Path,
     project_root: str | Path | None = None,
 ) -> dict[str, Any]:
@@ -444,6 +464,39 @@ def run_project_from_config(
 
 
 def run_pipeline(
+    source_path: str | Path,
+    source_name: str,
+    question: str,
+    metric_column: str | None = None,
+    dimension_column: str | None = None,
+    catalog_column: str | None = None,
+    provider_column: str = "provider",
+    release_year_column: str = "release_year",
+    project_root: str | Path | None = None,
+    aggregation: str | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Run the pipeline under the project write lease (see ``run_project_from_config``)."""
+    repo_root = resolve_project_root(project_root, __file__)
+    _, project_dir = _resolve_project_dir(repo_root=repo_root, source_name=source_name)
+    with project_write_lease(project_dir):
+        results = _run_pipeline_body(
+            source_path=source_path,
+            source_name=source_name,
+            question=question,
+            metric_column=metric_column,
+            dimension_column=dimension_column,
+            catalog_column=catalog_column,
+            provider_column=provider_column,
+            release_year_column=release_year_column,
+            project_root=project_root,
+            aggregation=aggregation,
+        )
+        record_artifacts(project_dir, project_dir.name, run_id)
+    return results
+
+
+def _run_pipeline_body(
     source_path: str | Path,
     source_name: str,
     question: str,

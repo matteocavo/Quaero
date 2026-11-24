@@ -12,6 +12,7 @@ from app.pipeline_runner import (
 from app.pipeline_runner import (
     run_project_from_config,
 )
+from app.provenance import ProjectBusyError
 
 
 def _configure_logging() -> None:
@@ -148,4 +149,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ProjectBusyError as exc:
+        raise SystemExit(f"error: {exc}") from exc

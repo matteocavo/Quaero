@@ -32,7 +32,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # Schema version — bump when DDL changes (additive changes only)
 # ---------------------------------------------------------------------------
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 # ---------------------------------------------------------------------------
 # DDL
@@ -82,6 +82,113 @@ CREATE INDEX IF NOT EXISTS idx_runs_status  ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_marts_project ON marts(project_name);
 """
 
+
+# ---------------------------------------------------------------------------
+# Migration v1 -> v2 (additive only: new tables, indexes and triggers).
+# No ALTER/UPDATE/DELETE on projects, runs or marts. No backfill.
+# ---------------------------------------------------------------------------
+_MIGRATION_V2 = """
+CREATE TABLE IF NOT EXISTS run_artifacts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project     TEXT NOT NULL,
+    run_id      TEXT,
+    writer      TEXT NOT NULL CHECK(writer IN ('api','cli')),
+    artifact    TEXT NOT NULL,
+    path        TEXT NOT NULL,
+    sha256      TEXT NOT NULL,
+    size        INTEGER NOT NULL,
+    recorded_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_run_artifacts_lookup ON run_artifacts(project, artifact, id);
+
+CREATE TABLE IF NOT EXISTS review_items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project         TEXT NOT NULL,
+    run_id          TEXT NOT NULL,
+    kind            TEXT NOT NULL CHECK(kind IN ('anomaly','dq')),
+    ref             TEXT NOT NULL,
+    rule_id         TEXT,
+    original_json   TEXT NOT NULL,
+    artifact_sha256 TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'REVIEW_REQUIRED'
+        CHECK(status IN ('REVIEW_REQUIRED','ACCEPTED','CORRECTED','REJECTED')),
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL,
+    UNIQUE(project, run_id, kind, ref)
+);
+
+CREATE INDEX IF NOT EXISTS idx_review_items_project_status ON review_items(project, status);
+
+CREATE TABLE IF NOT EXISTS review_events (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id           INTEGER NOT NULL REFERENCES review_items(id),
+    from_status       TEXT NOT NULL,
+    to_status         TEXT NOT NULL,
+    reviewer          TEXT NOT NULL,
+    reviewer_source   TEXT NOT NULL DEFAULT 'declared' CHECK(reviewer_source = 'declared'),
+    reason            TEXT,
+    client_request_id TEXT NOT NULL,
+    at                TEXT NOT NULL,
+    UNIQUE(item_id, client_request_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_review_events_item ON review_events(item_id, id);
+
+CREATE TABLE IF NOT EXISTS review_corrections (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id      INTEGER NOT NULL REFERENCES review_items(id),
+    event_id     INTEGER NOT NULL REFERENCES review_events(id),
+    payload_json TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+);
+
+CREATE TRIGGER IF NOT EXISTS review_events_no_update BEFORE UPDATE ON review_events
+BEGIN SELECT RAISE(ABORT, 'review_events is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS review_events_no_delete BEFORE DELETE ON review_events
+BEGIN SELECT RAISE(ABORT, 'review_events is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS review_corrections_no_update BEFORE UPDATE ON review_corrections
+BEGIN SELECT RAISE(ABORT, 'review_corrections is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS review_corrections_no_delete BEFORE DELETE ON review_corrections
+BEGIN SELECT RAISE(ABORT, 'review_corrections is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS review_items_immutable_identity
+BEFORE UPDATE OF project, run_id, kind, ref, rule_id, original_json, artifact_sha256, created_at
+ON review_items
+BEGIN SELECT RAISE(ABORT, 'review item identity and original are immutable'); END
+"""
+
+
+def _split_statements(script: str) -> list[str]:
+    """Split a DDL script on ';' outside CREATE TRIGGER ... BEGIN ... END bodies."""
+    statements: list[str] = []
+    buf: list[str] = []
+    in_trigger_body = False
+    for line in script.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        buf.append(line)
+        upper = stripped.upper()
+        if upper.startswith("BEGIN"):
+            in_trigger_body = True
+        if in_trigger_body:
+            if upper.endswith("END;") or upper == "END":
+                in_trigger_body = False
+                statements.append(chr(10).join(buf).strip().rstrip(";"))
+                buf = []
+            continue
+        if stripped.endswith(";"):
+            statements.append(chr(10).join(buf).strip().rstrip(";"))
+            buf = []
+    if buf:
+        statements.append(chr(10).join(buf).strip().rstrip(";"))
+    return [s for s in statements if s]
+
+
 # ---------------------------------------------------------------------------
 # Thread-local connection pool
 # ---------------------------------------------------------------------------
@@ -108,25 +215,50 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-def init_db(db_path: Path | None = None) -> None:
-    """Create tables if they don't exist and stamp the schema version.
+class SchemaTooNewError(RuntimeError):
+    """The database was written by a newer Quaero than this code understands."""
 
-    Idempotent: safe to call on every startup.
+
+def _apply_migration_v2(conn: sqlite3.Connection) -> None:
+    for stmt in _split_statements(_MIGRATION_V2):
+        conn.execute(stmt)
+
+
+def init_db(db_path: Path | None = None) -> None:
+    """Create or upgrade the schema (v1 -> v2) and stamp the version.
+
+    Idempotent and additive. A fresh database gets the full schema; a v1 database
+    gets only the v2 additions inside one IMMEDIATE transaction (rolled back whole
+    on failure). A database newer than this code is refused, never downgraded.
     """
     path = db_path or _get_db_path()
     conn = _connect(path)
-    with conn:
-        for statement in _DDL.split(";"):
-            stmt = statement.strip()
-            if stmt:
-                conn.execute(stmt)
-        row = conn.execute("SELECT version FROM schema_version").fetchone()
-        if row is None:
-            conn.execute(
-                "INSERT INTO schema_version(version, applied_at) VALUES (?, ?)",
-                (_SCHEMA_VERSION, _now()),
-            )
-    conn.close()
+    conn.isolation_level = None  # explicit transaction control
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for statement in _DDL.split(";"):
+                stmt = statement.strip()
+                if stmt and not stmt.upper().startswith("PRAGMA"):
+                    conn.execute(stmt)
+            current = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0] or 0
+            if current > _SCHEMA_VERSION:
+                raise SchemaTooNewError(
+                    f"database schema v{current} is newer than this Quaero (v{_SCHEMA_VERSION}); "
+                    "upgrade Quaero instead of opening it with an older version"
+                )
+            if current < 2:
+                _apply_migration_v2(conn)
+                conn.execute(
+                    "INSERT INTO schema_version(version, applied_at) VALUES (?, ?)",
+                    (2, _now()),
+                )
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        conn.close()
 
 
 @contextmanager
@@ -341,3 +473,65 @@ def list_marts_db(project_name: str, db_path: Path | None = None) -> list[dict[s
             (project_name,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Run artifact provenance (v2)
+# ---------------------------------------------------------------------------
+
+
+def register_run_artifacts(
+    project: str,
+    run_id: str | None,
+    writer: str,
+    artifacts: list[dict[str, Any]],
+    db_path: Path | None = None,
+) -> None:
+    """Insert all fingerprint rows in ONE transaction (all rows or none).
+
+    Must be called while the project write lease is held (lease -> SQLite order).
+    ``run_id`` is None for writes not managed by an API run (CLI / direct calls).
+    """
+    if not artifacts:
+        return
+    conn = _connect(db_path or _get_db_path())
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            now = _now()
+            for art in artifacts:
+                conn.execute(
+                    "INSERT INTO run_artifacts"
+                    "(project, run_id, writer, artifact, path, sha256, size, recorded_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        project,
+                        run_id,
+                        writer,
+                        art["artifact"],
+                        art["path"],
+                        art["sha256"],
+                        int(art["size"]),
+                        now,
+                    ),
+                )
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        conn.close()
+
+
+def latest_run_artifact(
+    project: str, artifact: str, db_path: Path | None = None
+) -> dict[str, Any] | None:
+    """Most recent registration row for (project, artifact), or None."""
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM run_artifacts WHERE project = ? AND artifact = ? "
+            "ORDER BY id DESC LIMIT 1",
+            (project, artifact),
+        ).fetchone()
+    return dict(row) if row else None

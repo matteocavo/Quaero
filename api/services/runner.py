@@ -400,6 +400,7 @@ def execute_run(
                 result = run_project_from_config(
                     config_path=config_path,
                     project_root=project_root,
+                    run_id=run_id,
                 )
             finally:
                 if restore_after_run and original_config_text is not None:
@@ -420,6 +421,7 @@ def execute_run(
                 dimension_column=(dimension_column or "").strip() or None,
                 aggregation=aggregation,
                 project_root=project_root,
+                run_id=run_id,
             )
         else:
             raise FileNotFoundError(
