@@ -80,16 +80,33 @@ Principles:
 - Pipelines can also be run outside the API (CLI), overwriting the same files with no `runs` row at all.
 - Therefore "latest COMPLETED run" proves nothing about the files currently on disk. **The binding is not verifiable from the existing data.**
 
-**Design (additive; no pipeline change):**
-1. *Fingerprint at completion.* When the runner marks a run `COMPLETED`, it also records, for each review-relevant artifact, `(run_id, artifact, path, sha256, size, mtime_ns, recorded_at)` in a new additive table `run_artifacts` (schema v2, same migration). Hashing is read-only; the pipeline code is not modified.
-2. *Verification at sync.* Sync binds items to a run **only if** the current file's SHA-256 equals the fingerprint recorded for the latest COMPLETED run. Otherwise sync **fails explicitly and creates nothing**:
-   - no fingerprint for that run (e.g. runs made before v0.9.0) → `409 binding_unverifiable`;
-   - hash differs (file overwritten by a newer run, a CLI run, or manual edit) → `409 artifact_changed`;
+**Principle (approved 2026-11-24):** SHA-256 proves *integrity* (these bytes are unchanged since recorded), **not origin** (that a run produced them). Origin comes from a **mutual-exclusion guarantee**: while a pipeline writes a project's artifacts, no other Quaero writer can, and the fingerprint is taken **inside the same critical section** as the write. The "residual window" accepted in the first draft is removed.
+
+**Mechanism chosen: cross-entrypoint write coordination (Option B), not per-run output isolation (Option A).**
+
+| | A. Per-run isolation (`runs/<run_id>/…`, seal, atomic promote) | **B. Coordinated writes (chosen)** |
+|---|---|---|
+| Origin guarantee | Strongest: bytes live in a run-owned directory | Strong for every Quaero writer; non-Quaero writers are *detected*, not prevented |
+| Blast radius | Changes the output-path contract and every reader (`api/services/reports.py`, UI, CLI, tests, existing projects) | One new module + a `with` at the pipeline-runner entrypoints + one table |
+| Existing artifacts | Layout migration or dual paths | Untouched |
+| Fits "minimal reliable" | No — a separate minor of its own | **Yes** |
+
+Option A stays a documented future hardening (a later minor), not a v0.9.0 prerequisite.
+
+**Design (additive; pipeline logic unchanged):**
+1. *Project write lease (OS-level, cross-process).* New `app/provenance.py::project_write_lease(project_root, run_id=None, writer="api"|"cli")`: an exclusive, **non-blocking** OS file lock on `projects/<p>/.quaero_write.lock` (`msvcrt.locking` on Windows, `fcntl.flock` elsewhere). It is taken **inside** the public pipeline entrypoints (`app.pipeline_runner.run_pipeline` and `run_project_from_config`), the single choke point used by the API runner, `app/main.py` (CLI) and direct callers. OS locks are released by the kernel on process death, so there is **no stale-lock recovery problem**. Contention fails fast: API → run `FAILED`/`409 run_active`; CLI → clear "project busy" error, never a silent clobber (this also closes the existing hazard of a CLI run wiping `metadata/` mid-API-run; it is a deliberate, documented behaviour change confined to the contention case). Re-entrant within the same thread so the API runner's own call is not self-blocking.
+2. *Fingerprint inside the lease.* Still holding the lease, after the pipeline returns successfully and before releasing it, the entrypoint reads each review-relevant artifact **once**, computes SHA-256 from those bytes and inserts into the additive table `run_artifacts(id, project, run_id NULL, writer, artifact, path, sha256, size, recorded_at)` (schema v2, same migration). Every writer records a row: API runs carry `run_id`; CLI/direct runs carry `run_id = NULL` (an *unmanaged write*, which deliberately supersedes any earlier API run's rows). `run_id` is passed as an optional keyword (default `None`); no pipeline stage changes.
+3. *Registration failure (approved 2026-11-24, decision 1).* If hashing or the insert fails, the pipeline result stands: the run is still `COMPLETED` and nothing is raised. No row is written, so the run is **non-verifiable for Human Review** (`binding_unverifiable`). The failure is logged. A row is never written for a failed pipeline.
+4. *Verification at sync, under the lease.* Sync takes the lease (non-blocking; held → `409 run_active`), then for each artifact reads the file bytes **once** and uses those same in-memory bytes for both the SHA-256 and the parse (no hash-then-reopen TOCTOU). It binds items to run `R` only if the **latest** `run_artifacts` row for `(project, artifact)` has `run_id == R` **and** `sha256 ==` the hash just computed. Item creation (snapshots) happens in one SQLite transaction while the lease is held; on any failure nothing is created. Otherwise sync **fails explicitly and creates nothing**:
+   - no row for that run (runs before v0.9.0, or registration failed) → `409 binding_unverifiable` (decision 2: pre-v0.9.0 runs are rejected, **no backfill**);
+   - latest row is an unmanaged write (CLI/direct run after the API run) → `409 unmanaged_write`;
+   - hash differs (overwritten or edited outside Quaero after the fingerprint) → `409 artifact_changed`;
    - a run is QUEUED/RUNNING for the project → `409 run_active`;
    - artifact missing/unreadable → `409 artifact_unavailable`.
    Error bodies state the cause and the remedy (re-run the project); they contain no paths or SQL.
-3. *Immutable snapshots.* `original_json` and `artifact_sha256` are stored at item creation and protected by triggers (no UPDATE/DELETE of identity or snapshot columns). The stored hash is the SHA-256 of the **artifact file bytes** from which the item was derived; `GET /review/items/{id}` re-verifies `original_json` against a stored `snapshot_sha256` (hash of the canonical snapshot) and reports `snapshot_verified: true|false`. A later overwrite of the artifact never alters an acquired item.
-4. *Residual window (documented).* Between pipeline completion and fingerprinting, a concurrent external overwrite could be fingerprinted. The runner already serialises runs per project and fingerprints immediately after the pipeline returns and before `COMPLETED`; the CLI-while-API-runs case is out of scope and called out as a limitation.
+5. *Immutable snapshots.* `original_json` and `artifact_sha256` are stored at item creation and protected by triggers (no UPDATE/DELETE of identity or snapshot columns). The stored hash is the SHA-256 of the **artifact file bytes** from which the item was derived; `GET /review/items/{id}` re-verifies `original_json` against a stored `snapshot_sha256` (hash of the canonical snapshot) and reports `snapshot_verified: true|false`. A later overwrite of the artifact never alters an acquired item.
+6. *What is and is not guaranteed.* **Guaranteed:** no Quaero entrypoint (API, CLI, direct call) can write a project's artifacts while another holds the lease; the fingerprint is taken inside the lease from the bytes the run just produced; sync reads and hashes the same bytes under the lease. **Not prevented, but detected:** a non-Quaero process (manual edit, sync client, script) writing a file *outside* the lease is caught as `artifact_changed` if it happens after fingerprinting; a non-Quaero write *during* a run, before fingerprinting, cannot be distinguished from the run's output (out of scope, stated in the docs). **Hardening (optional, in PR 1 if cheap):** store the fingerprinted bytes as a content-addressed blob so provenance does not depend on the mutable file.
+7. *Out of scope here.* Smart Data Onboarding / Multi-dataset Import and workspace deletion are **separate future plans** and are not designed or started by this one.
 
 ### 3.1 Item generation
 *Binding.* Per §3.0: `run_id` is assigned only after the hash check passes; it is never inferred from "latest COMPLETED" alone.
@@ -197,44 +214,62 @@ identical to `/reports`). JSON only. Five endpoints; each is justified below.
 ### 5.1 Schemas (Pydantic; mirrored in `types/api.ts` and `_ts_interfaces.py`)
 
 ```python
-class ReviewSyncRequest(BaseModel):            # extra="forbid"
-    project: str                               # existing project-name validator
+class ReviewSyncRequest(BaseModel):  # extra="forbid"
+    project: str  # existing project-name validator
+
 
 class ReviewSyncResponse(BaseModel):
-    project: str; run_id: str
-    created: int; existing: int
+    project: str
+    run_id: str
+    created: int
+    existing: int
+
 
 class ReviewItem(BaseModel):
-    id: int; project: str; run_id: str
-    kind: Literal["anomaly","dq"]; ref: str; rule_id: str
-    status: Literal["REVIEW_REQUIRED","ACCEPTED","CORRECTED","REJECTED"]
-    superseded: bool                           # derived, see §3.1
-    created_at: str; updated_at: str
+    id: int
+    project: str
+    run_id: str
+    kind: Literal["anomaly", "dq"]
+    ref: str
+    rule_id: str
+    status: Literal["REVIEW_REQUIRED", "ACCEPTED", "CORRECTED", "REJECTED"]
+    superseded: bool  # derived, see §3.1
+    created_at: str
+    updated_at: str
+
 
 class ReviewItemDetail(ReviewItem):
-    original: dict                             # immutable snapshot
-    effective: dict                            # original + active overlay
+    original: dict  # immutable snapshot
+    effective: dict  # original + active overlay
     correction: ReviewCorrection | None
     artifact_sha256: str
 
+
 class ReviewCorrection(BaseModel):
-    field: Literal["impact","outlier_flag"]    # whitelist per kind (§6.2)
+    field: Literal["impact", "outlier_flag"]  # whitelist per kind (§6.2)
     from_value: str | bool
     to_value: str | bool
     justification: str
 
-class ReviewDecisionRequest(BaseModel):        # extra="forbid"
-    decision: Literal["ACCEPTED","CORRECTED","REJECTED"]
-    reviewer: str                              # 1–80 chars after trim, no control chars
-    reason: str | None                         # ≤ 1000 chars
+
+class ReviewDecisionRequest(BaseModel):  # extra="forbid"
+    decision: Literal["ACCEPTED", "CORRECTED", "REJECTED"]
+    reviewer: str  # 1–80 chars after trim, no control chars
+    reason: str | None  # ≤ 1000 chars
     correction: ReviewCorrection | None
-    expected_status: Literal["REVIEW_REQUIRED","CORRECTED"]   # optimistic concurrency
-    client_request_id: str                     # UUID, idempotency key
+    expected_status: Literal["REVIEW_REQUIRED", "CORRECTED"]  # optimistic concurrency
+    client_request_id: str  # UUID, idempotency key
+
 
 class ReviewEvent(BaseModel):
-    id: int; item_id: int; from_status: str; to_status: str
-    reviewer: str; reviewer_source: Literal["declared"]
-    reason: str | None; at: str
+    id: int
+    item_id: int
+    from_status: str
+    to_status: str
+    reviewer: str
+    reviewer_source: Literal["declared"]
+    reason: str | None
+    at: str
 ```
 
 Cross-field validation (model validator → **422**): `reason` required (non-blank) for `CORRECTED` and `REJECTED`;
@@ -317,13 +352,25 @@ Accepting a CORRECTED item accepts the corrected overlay.
 - *Idempotency*: replay with same `client_request_id` → identical 200, one event; different key after terminal → 409.
 - *Immutability/append-only*: direct `UPDATE`/`DELETE` on events/corrections and identity columns of items raises; artifact files byte-identical (hash) before/after sync and decisions; `original_json` unchanged after a new run overwrites the artifact.
 - *API* (`tests/test_review_api.py`, TestClient): 401/503, 404, 409, 422 matrix (missing reason, bad field, extra keys, blank reviewer, oversize), `reviewer_source` cannot be supplied, error bodies contain no paths/SQL.
-- *Binding* (`tests/test_review_binding.py`): runner records fingerprints on COMPLETED (and none on FAILED); sync succeeds when hash matches; overwrite after run → `artifact_changed` and zero items; pre-v0.9 run → `binding_unverifiable`; run active → `run_active`; missing file → `artifact_unavailable`; snapshot stays verifiable after artifact overwrite; tampered `original_json` → `snapshot_verified=false`.
+- *Binding* (`tests/test_review_binding.py`): runner records fingerprints on COMPLETED (and none on FAILED); sync succeeds when hash matches; overwrite after run → `artifact_changed` and zero items; pre-v0.9 run → `binding_unverifiable`; run active → `run_active`; missing file → `artifact_unavailable`; snapshot stays verifiable after artifact overwrite; tampered `original_json` → `snapshot_verified=false`; fingerprint registration failure (monkeypatched) → run stays `COMPLETED`, sync → `binding_unverifiable`.
+- *Provenance concurrency* (`tests/test_provenance_lease.py`, real processes via `multiprocessing`, plus threads):
+  1. two pipeline entrypoints on one project (API-style + CLI-style) → exactly one runs, the other fails fast with "project busy"; artifacts are never a mix of both;
+  2. CLI run **after** an API run → latest row `run_id NULL` → sync `409 unmanaged_write`, zero items;
+  3. CLI run **during** an API run → refused; the API run's output and fingerprint are intact;
+  4. overwrite attempted between pipeline end and fingerprinting by another Quaero writer → impossible (lease held); asserted by a writer blocked until release;
+  5. sync vs. running pipeline → `409 run_active`; sync vs. sync → each item created once;
+  6. process killed (SIGKILL / `TerminateProcess`) while holding the lease → lease free for the next run, no manual cleanup;
+  7. hash-then-parse: file replaced between "hash" and "parse" in a hook → the item is built from the hashed bytes or the sync fails, never a mismatched pair;
+  8. an external (non-Quaero) process holding the file open on Windows → bounded retry, then explicit error, no partial items;
+  9. non-Quaero edit after fingerprint → `artifact_changed`; before-fingerprint edit documented as out of scope (test asserts the documented limitation);
+  10. lease is re-entrant for the API runner (no self-deadlock) and released on every exit path including exceptions;
+  11. registration failure (insert raises) never fails a completed pipeline.
 - *Rules*: R1/R3 default, R2/R4 off, config on/off, undefined threshold inactive, v1 report → zero items, malformed config → clear 4xx/startup error.
 - *Regression*: full existing suite unchanged; `test_frontend_contract.py` covers new schemas; `init_db` on v1 DB used by existing tests still works.
 
 **Frontend (Vitest + Testing Library):** queue render/filters/empty/error; dialog validation (reason mandatory); 409 handling; idempotency key stable across retry; reviewer label says "declared"; Review tab absent in demo mode. **E2E (Playwright, Local Operations):** run a project → Review → sync → open item → Reject with reason → status and history update; second decision attempt blocked; Public Demo has no Review entry.
 
-**Acceptance criteria:** (1) v0.8.0 DBs upgrade in place with zero change to existing rows; (2) every decision yields exactly one immutable event; (3) no artifact byte changes; (4) concurrent/duplicate decisions never double-apply; (5) reviewer never shown as authenticated; (6) Public Demo and Pages bundle unchanged; (7) CI green on Node 22, no new dependency; **(8) sync fails explicitly (409, no item created) whenever the run↔artifact association cannot be verified by SHA-256 (missing fingerprint, changed artifact, run active, artifact unavailable); acquired snapshots are immutable and verifiable via SHA-256 even after the artifact is overwritten.**
+**Acceptance criteria:** (1) v0.8.0 DBs upgrade in place with zero change to existing rows; (2) every decision yields exactly one immutable event; (3) no artifact byte changes; (4) concurrent/duplicate decisions never double-apply; (5) reviewer never shown as authenticated; (6) Public Demo and Pages bundle unchanged; (7) CI green on Node 22, no new dependency; **(8) sync fails explicitly (409, no item created) whenever the run↔artifact association cannot be verified by SHA-256 (missing fingerprint, unmanaged write, changed artifact, run active, artifact unavailable); acquired snapshots are immutable and verifiable via SHA-256 even after the artifact is overwritten.** **(9) No two Quaero writers (API, CLI, direct) can write one project's artifacts concurrently; the fingerprint is recorded inside the same lease as the write; SHA-256 is never presented as proof of origin; a fingerprint-registration failure never fails a completed run but makes it unverifiable; pre-v0.9.0 runs are rejected without backfill; the lease survives process death without manual cleanup.**
 
 ## 9. Risks and mitigations
 
@@ -333,7 +380,11 @@ Accepting a CORRECTED item accepts the corrected overlay.
 | Migration corrupts an existing DB | Additive-only, single transaction, tested against a real v1 fixture; recommend (not force) backing up `quaero.db` in release notes. |
 | Run↔artifact binding unverifiable / artifact overwritten | Fingerprint at completion (`run_artifacts`) + SHA-256 check at sync; explicit 409 (`binding_unverifiable`, `artifact_changed`, `run_active`, `artifact_unavailable`); nothing created on failure (§3.0). |
 | Runs predating v0.9.0 have no fingerprint | Sync refuses (`binding_unverifiable`) with the remedy "re-run the project"; no backfill guessing. |
-| Run in flight during sync → wrong binding | 409 `run_active`. |
+| Run in flight during sync → wrong binding | 409 `run_active` (sync needs the lease; held → refused). |
+| Race CLI ↔ pipeline ↔ fingerprint (previously "residual") | Cross-process OS write lease at the pipeline-runner choke point; fingerprint inside the lease; unmanaged CLI writes recorded and rejected at sync (§3.0). |
+| Lease blocks a CLI run while the API runs | Intended: fail-fast "project busy" message instead of silent clobber; documented behaviour change. |
+| Writer outside Quaero during a run | Not preventable; later edits caught by hash; documented limitation; Option A (per-run isolation) is the future hardening. |
+| Lock semantics differ Windows/POSIX or OneDrive path | Lock file only (no data); tested on Windows CI-equivalent and Linux CI; kill-while-held test; fall back to explicit error, never to "no lock". |
 | Declared reviewer mistaken for identity | `reviewer_source` pinned by CHECK, "declared/unverified" in API docs, event rows and UI; no auth wording anywhere. |
 | Double submit / retries | `client_request_id` + unique index + `expected_status`. |
 | Windows/OneDrive file locking | Review state is in SQLite (not JSON files), so the run-file retry hazards do not apply; keep short transactions. |
@@ -350,14 +401,14 @@ their Vitest tests, `frontend/e2e/review.spec.ts`, `review_rules.example.json`.
 Modified: `db/store.py` (migration runner, review store functions), `api/schemas.py`, `api/main.py` (one `include_router`),
 `frontend/src/types/api.ts`, `frontend/src/services/apiClient.ts`, navigation component(s) for the Review tab, `tests/_ts_interfaces.py`,
 `CHANGELOG.md`, version strings (single source). Docs: README/ARCHITECTURE sections only at release time.
-Also modified (prerequisite, §3.0): `api/services/runner.py` — one additive call after the pipeline returns, recording fingerprints; failure to fingerprint must not fail the run but leaves the run unverifiable. New table `run_artifacts`; `tests/test_review_binding.py`.
+Also modified (prerequisite, §3.0): new `app/provenance.py` (write lease + fingerprint recording); `app/pipeline_runner.py` — `with project_write_lease(...)` and one fingerprint call at the two public entrypoints (stage logic untouched, optional `run_id=None` keyword); `api/services/runner.py` — passes `run_id`, maps lease contention to a clear failure; `app/main.py` — surfaces "project busy". Failure to fingerprint must not fail the run but leaves it unverifiable. New table `run_artifacts`; `tests/test_review_binding.py`, `tests/test_provenance_lease.py`.
 **Not touched:** pipelines, the existing `runs` columns/behaviour, Public Demo/GitHub Pages, Streamlit, historical docs, Notion.
 
 ## 11. Complexity estimate
 
 Medium–large, roughly 5–7 focused working days: migration runner + schema + store ≈ 1; service/rules/router ≈ 1.5;
 frontend view + dialog ≈ 1.5–2; tests (concurrency, migration, E2E) ≈ 1.5–2; docs/release ≈ 0.5. The migration runner and the
-binding/snapshot are the highest-risk pieces. Approved split: three separate PRs, one `v0.9.0` tag after integration and validation. **PR 1:** migration (review tables + `run_artifacts`) + runner fingerprinting + store + binding/migration tests. **PR 2:** service + rules + API + tests. **PR 3:** UI + E2E + docs/version. The runner change is confined to PR 1 so PRs 2–3 do not alter run execution.
+binding/snapshot are the highest-risk pieces. Approved split: three separate PRs, one `v0.9.0` tag after integration and validation. **PR 1:** migration (review tables + `run_artifacts`) + write lease + fingerprinting at the pipeline entrypoints + store + binding/lease/migration tests. **PR 1 does not start until the user approves §3.0.** **PR 2:** service + rules + API + tests. **PR 3:** UI + E2E + docs/version. The runner change is confined to PR 1 so PRs 2–3 do not alter run execution.
 
 ## 12. Approved decisions
 
@@ -377,6 +428,12 @@ binding/snapshot are the highest-risk pieces. Approved split: three separate PRs
 **Mandatory additional constraint (approval):** the run↔artifact association must be reliable before implementation;
 "latest COMPLETED run" is insufficient if artifacts can be overwritten; if it is not verifiable, sync fails explicitly;
 acquired snapshots stay immutable and verifiable via SHA-256. → §3.0 and acceptance criterion 8.
+
+**Approvals of 2026-11-24 (provenance review):**
+1. Additive change to record artifact SHA-256 in `run_artifacts`: **approved**. A registration error never fails a completed pipeline but makes the run non-verifiable for Human Review.
+2. Reject pre-v0.9.0 runs without hashes: **approved**; no retroactive backfill.
+3. The CLI/pipeline/fingerprint race is **not** an accepted residual risk. Resolved in the plan by §3.0 (cross-entrypoint write lease, fingerprint inside the lease; per-run isolation evaluated and deferred). **Pending user approval of this mechanism before PR 1.**
+Out of scope: Smart Data Onboarding / Multi-dataset Import and workspace deletion (separate future plans). No merge, deployment or change to existing artifacts.
 
 **Out of scope for v0.9.0 (noted, separate follow-up needing its own plan):** deleting browser workspaces and uploading
 multiple datasets (facts and dimensions) from the project selector.
