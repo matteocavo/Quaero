@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_VERSION } from '../version';
 import {
   Home,
   Upload,
@@ -188,7 +189,7 @@ export const Sidebar: React.FC = () => {
               Web App
             </span>
             <span className="font-mono text-[10px] text-slate-600 dark:text-slate-300">
-              Quaero 0.7.0
+              Quaero {APP_VERSION}
             </span>
           </div>
         </div>

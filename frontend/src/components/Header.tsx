@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_VERSION } from '../version';
 import {
   Menu,
   Moon,
@@ -71,7 +72,7 @@ export const Header: React.FC = () => {
                 Quaero
               </span>
               <span className="rounded-md border border-sky-300 bg-sky-100 px-1.5 py-0.2 text-[10px] font-bold text-sky-900 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300">
-                v0.7.0
+                v{APP_VERSION}
               </span>
             </div>
             <p className="hidden text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:block">

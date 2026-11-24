@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../version';
 import {
   HealthResponse,
   ProjectsResponse,
@@ -129,7 +130,7 @@ export class QuaeroApiClient {
 
   public async checkHealth(): Promise<HealthResponse> {
     if (this.mode === 'demo') {
-      return { status: 'ok', version: 'v0.7.0 (Public Demo Sandbox)' };
+      return { status: 'ok', version: `v${APP_VERSION} (Public Demo Sandbox)` };
     }
     return this.request<HealthResponse>('/health');
   }
