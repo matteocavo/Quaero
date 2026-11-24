@@ -194,6 +194,8 @@ def produced_artifact_paths(project_dir: str | Path, results: Any) -> list[Path]
     returned, not skipped, matching the reviewed patterns, and existing inside this project's ``metadata/`` count.
     """
     metadata = Path(project_dir) / "metadata"
+    metadata_resolved = metadata.resolve()
+    repo_root = Path(project_dir).parent.parent
     found: list[Path] = []
     if not isinstance(results, dict):
         return found
@@ -201,9 +203,17 @@ def produced_artifact_paths(project_dir: str | Path, results: Any) -> list[Path]
         entry = results.get(key)
         if not isinstance(entry, dict) or entry.get("skipped") or not entry.get("output_path"):
             continue
-        path = metadata / Path(str(entry["output_path"])).name
-        if any(path.match(pattern) for pattern in ARTIFACT_PATTERNS) and path.is_file():
-            found.append(path)
+        # The declared path is relative to the repo root ("projects/<name>/metadata/<file>"). It is resolved and
+        # validated as declared, never reduced to its file name: anything not directly inside this project's
+        # metadata/ is rejected, not corrected.
+        try:
+            path = (repo_root / str(entry["output_path"])).resolve()
+        except (OSError, ValueError):
+            continue
+        if path.parent != metadata_resolved or not path.is_file():
+            continue
+        if any(path.match(pattern) for pattern in ARTIFACT_PATTERNS):
+            found.append(metadata / path.name)
     return found
 
 

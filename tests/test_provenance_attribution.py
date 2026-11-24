@@ -154,3 +154,23 @@ def test_other_source_and_undeclared_files_ignored(root):
         == []
     )
     assert prov.produced_artifact_paths(meta.parent, None) == []
+
+
+def test_external_path_with_valid_filename_is_rejected(root):
+    meta = _meta(root)
+    other = root / "projects" / "other" / "metadata"
+    other.mkdir(parents=True)
+    (other / DQ).write_text("foreign", encoding="utf-8")
+    (meta / DQ).write_text("local-stale", encoding="utf-8")
+    project = meta.parent
+    for bad in (
+        f"../other/metadata/{DQ}",
+        f"projects/other/metadata/{DQ}",
+        f"projects/demo/metadata/../../other/metadata/{DQ}",
+        str(other / DQ),
+        f"projects/demo/{DQ}",
+    ):
+        assert prov.produced_artifact_paths(project, {"dq_score": {"output_path": bad}}) == [], bad
+    assert prov.produced_artifact_paths(project, {"dq_score": {"output_path": REL + DQ}}) == [
+        meta / DQ
+    ]
