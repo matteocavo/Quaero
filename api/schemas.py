@@ -538,7 +538,8 @@ class ReviewItem(BaseModel):
     rule_id: str
     status: ReviewStatus
     superseded: bool
-    snapshot_verified: bool
+    snapshot_verified: bool  # stored snapshot_sha256 matches the recomputed canonical hash
+    artifact_provenance_verified: bool  # artifact fingerprint is recorded for the run
     created_at: str
     updated_at: str
 

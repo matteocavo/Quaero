@@ -176,15 +176,25 @@ def _sync_locked(project_dir: Path, project: str, rules: dict[str, Any]) -> dict
             ) from exc
         if isinstance(doc, dict):
             parsed.append((name, res.row["sha256"], doc))
+    # A ref only identifies an item within one source artifact. When a run holds several
+    # artifacts of the same kind, qualify refs with the source so equal column names from
+    # different datasets do not collapse into one item.
+    per_kind = {
+        "anomaly": sum(1 for n, _, _ in parsed if n.startswith(ANOMALY_PREFIX)),
+        "dq": sum(1 for n, _, _ in parsed if n.startswith(DQ_PREFIX)),
+    }
     items: dict[tuple[str, str], dict[str, Any]] = {}
     for name, sha, doc in parsed:
         if name.startswith(ANOMALY_PREFIX):
-            kind, found = "anomaly", _anomaly_items(doc, rules)
+            kind, found, prefix = "anomaly", _anomaly_items(doc, rules), ANOMALY_PREFIX
         elif name.startswith(DQ_PREFIX):
-            kind, found = "dq", _dq_items(doc, rules)
+            kind, found, prefix = "dq", _dq_items(doc, rules), DQ_PREFIX
         else:
             continue
+        source = name[len(prefix) :].removesuffix(".json")
         for ref, rid, original in found:
+            if per_kind[kind] > 1:
+                ref = f"{source}::{ref}"
             items.setdefault(
                 (kind, ref),
                 {
@@ -225,6 +235,7 @@ def item_view(item: dict[str, Any], detail: bool = False) -> dict[str, Any]:
         "status": item["status"],
         "superseded": bool(item["superseded"]),
         "snapshot_verified": bool(item["snapshot_verified"]),
+        "artifact_provenance_verified": bool(item["artifact_provenance_verified"]),
         "created_at": item["created_at"],
         "updated_at": item["updated_at"],
     }

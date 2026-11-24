@@ -20,6 +20,8 @@ Design decisions
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import sqlite3
 import threading
@@ -32,7 +34,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # Schema version — bump when DDL changes (additive changes only)
 # ---------------------------------------------------------------------------
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 
 # ---------------------------------------------------------------------------
 # DDL
@@ -224,8 +226,53 @@ def _apply_migration_v2(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+_IDENTITY_TRIGGER_V3 = (
+    "CREATE TRIGGER review_items_immutable_identity\n"
+    "BEFORE UPDATE OF project, run_id, kind, ref, rule_id, original_json, artifact_sha256, "
+    "snapshot_sha256, created_at\n"
+    "ON review_items\n"
+    "BEGIN SELECT RAISE(ABORT, 'review item identity and original are immutable'); END"
+)
+
+
+def _apply_migration_v3(conn: sqlite3.Connection) -> None:
+    """Add review_items.snapshot_sha256 (NULL for legacy rows: never backfilled)."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(review_items)")}
+    if "snapshot_sha256" not in cols:
+        conn.execute("ALTER TABLE review_items ADD COLUMN snapshot_sha256 TEXT")
+    conn.execute("DROP TRIGGER IF EXISTS review_items_immutable_identity")
+    conn.execute(_IDENTITY_TRIGGER_V3)
+
+
+def compute_snapshot_sha256(
+    project: str,
+    run_id: str,
+    kind: str,
+    ref: str,
+    rule_id: str,
+    artifact_sha256: str,
+    original_json: str,
+) -> str:
+    """SHA-256 of the canonical review-item snapshot (identity + original content)."""
+    canonical = json.dumps(
+        {
+            "project": project,
+            "run_id": run_id,
+            "kind": kind,
+            "ref": ref,
+            "rule_id": rule_id,
+            "artifact_sha256": artifact_sha256,
+            "original": json.loads(original_json),
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def init_db(db_path: Path | None = None) -> None:
-    """Create or upgrade the schema (v1 -> v2) and stamp the version.
+    """Create or upgrade the schema (v1 -> v2 -> v3) and stamp the version.
 
     Idempotent and additive. A fresh database gets the full schema; a v1 database
     gets only the v2 additions inside one IMMEDIATE transaction (rolled back whole
@@ -249,9 +296,12 @@ def init_db(db_path: Path | None = None) -> None:
                 )
             if current < 2:
                 _apply_migration_v2(conn)
+            if current < 3:
+                _apply_migration_v3(conn)
+            if current < _SCHEMA_VERSION:  # one stamp per upgrade, for the version reached
                 conn.execute(
                     "INSERT INTO schema_version(version, applied_at) VALUES (?, ?)",
-                    (2, _now()),
+                    (_SCHEMA_VERSION, _now()),
                 )
             conn.execute("COMMIT")
         except BaseException:
@@ -570,9 +620,35 @@ _ITEM_SELECT = (
     "SELECT i.*, "
     f"COALESCE(i.run_id != {_LATEST_COMPLETED}, 0) AS superseded, "
     "EXISTS(SELECT 1 FROM run_artifacts ra WHERE ra.project = i.project "
-    "AND ra.run_id = i.run_id AND ra.sha256 = i.artifact_sha256) AS snapshot_verified "
+    "AND ra.run_id = i.run_id AND ra.sha256 = i.artifact_sha256) AS artifact_provenance_verified "
     "FROM review_items i"
 )
+
+
+def _with_snapshot_check(row: sqlite3.Row) -> dict[str, Any]:
+    """Add snapshot_verified: stored snapshot_sha256 matches the recomputed canonical hash.
+
+    Independent of artifact provenance. Legacy rows (NULL hash) are never verified.
+    """
+    d = dict(row)
+    stored = d.get("snapshot_sha256")
+    ok = False
+    if stored:
+        try:
+            ok = stored == compute_snapshot_sha256(
+                d["project"],
+                d["run_id"],
+                d["kind"],
+                d["ref"],
+                d["rule_id"],
+                d["artifact_sha256"],
+                d["original_json"],
+            )
+        except (ValueError, TypeError):
+            ok = False
+    d["snapshot_verified"] = ok
+    d["artifact_provenance_verified"] = bool(d["artifact_provenance_verified"])
+    return d
 
 
 def latest_completed_run(project: str, db_path: Path | None = None) -> dict[str, Any] | None:
@@ -611,8 +687,8 @@ def insert_review_items(
                 cur = conn.execute(
                     "INSERT OR IGNORE INTO review_items"
                     "(project, run_id, kind, ref, rule_id, original_json, artifact_sha256, "
-                    "status, created_at, updated_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'REVIEW_REQUIRED', ?, ?)",
+                    "snapshot_sha256, status, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'REVIEW_REQUIRED', ?, ?)",
                     (
                         project,
                         run_id,
@@ -621,6 +697,15 @@ def insert_review_items(
                         it["rule_id"],
                         it["original_json"],
                         it["artifact_sha256"],
+                        compute_snapshot_sha256(
+                            project,
+                            run_id,
+                            it["kind"],
+                            it["ref"],
+                            it["rule_id"],
+                            it["artifact_sha256"],
+                            it["original_json"],
+                        ),
                         now,
                         now,
                     ),
@@ -665,13 +750,13 @@ def list_review_items(
         rows = conn.execute(
             f"{base} ORDER BY id DESC LIMIT ? OFFSET ?", (*params, limit, offset)
         ).fetchall()
-    return [dict(r) for r in rows], total
+    return [_with_snapshot_check(r) for r in rows], total
 
 
 def get_review_item(item_id: int, db_path: Path | None = None) -> dict[str, Any] | None:
     with get_connection(db_path) as conn:
         row = conn.execute(f"{_ITEM_SELECT} WHERE i.id = ?", (item_id,)).fetchone()
-    return dict(row) if row else None
+    return _with_snapshot_check(row) if row else None
 
 
 def list_review_events(item_id: int, db_path: Path | None = None) -> list[dict[str, Any]]:
@@ -691,6 +776,34 @@ def latest_review_correction(item_id: int, db_path: Path | None = None) -> dict[
             (item_id,),
         ).fetchone()
     return dict(row) if row else None
+
+
+def _same_request(
+    conn: sqlite3.Connection,
+    prior: sqlite3.Row,
+    to_status: str,
+    expected_status: str,
+    reviewer: str,
+    reason: str | None,
+    correction_json: str | None,
+) -> bool:
+    """True only if a replayed client_request_id carries the semantically identical request.
+
+    An applied event's from_status equals the expected_status it was sent with.
+    """
+    if (
+        prior["to_status"] != to_status
+        or prior["from_status"] != expected_status
+        or prior["reviewer"] != reviewer
+        or prior["reason"] != reason
+    ):
+        return False
+    row = conn.execute(
+        "SELECT payload_json FROM review_corrections WHERE event_id = ?", (prior["id"],)
+    ).fetchone()
+    stored = json.loads(row["payload_json"]) if row else None
+    sent = json.loads(correction_json) if correction_json is not None else None
+    return stored == sent
 
 
 def apply_review_decision(
@@ -723,7 +836,9 @@ def apply_review_decision(
                 (item_id, client_request_id),
             ).fetchone()
             if prior is not None:
-                if prior["to_status"] != to_status or prior["reviewer"] != reviewer:
+                if not _same_request(
+                    conn, prior, to_status, expected_status, reviewer, reason, correction_json
+                ):
                     raise ReviewConflictError(
                         "request_id_conflict",
                         "client_request_id was already used for a different decision.",

@@ -644,7 +644,118 @@ def test_snapshot_verified_false_when_fingerprint_unmatched(root, synced):
     finally:
         conn.close()
     d = synced.get(f"/review/items/{i['id']}", headers=H).json()
+    assert d["artifact_provenance_verified"] is False
+    assert d["snapshot_verified"] is True  # snapshot integrity is independent of provenance
+
+
+def _raw(sql, params=()):
+    conn = sqlite3.connect(store._get_db_path())
+    try:
+        cur = conn.execute(sql, params)
+        conn.commit()
+        return cur.fetchall()
+    finally:
+        conn.close()
+
+
+def test_snapshot_hash_stored_and_verified_at_read(synced):
+    i = _find(synced, "dq", "streams")
+    assert i["snapshot_verified"] is True and i["artifact_provenance_verified"] is True
+    assert _raw("SELECT COUNT(*) FROM review_items WHERE snapshot_sha256 IS NULL")[0][0] == 0
+
+
+def test_snapshot_tampering_detected(synced):
+    i = _find(synced, "dq", "streams")
+    _raw("DROP TRIGGER review_items_immutable_identity")
+    _raw(
+        "UPDATE review_items SET original_json = ? WHERE id = ?",
+        (json.dumps({"column": "streams", "outlier_flag": False}), i["id"]),
+    )
+    d = synced.get(f"/review/items/{i['id']}", headers=H).json()
     assert d["snapshot_verified"] is False
+    assert d["artifact_provenance_verified"] is True  # provenance is a separate signal
+    assert _find(synced, "dq", "streams")["snapshot_verified"] is False
+
+
+def test_legacy_null_snapshot_hash_not_verified_nor_backfilled(synced):
+    i = _find(synced, "dq", "streams")
+    _raw("DROP TRIGGER review_items_immutable_identity")
+    _raw("UPDATE review_items SET snapshot_sha256 = NULL WHERE id = ?", (i["id"],))
+    d = synced.get(f"/review/items/{i['id']}", headers=H).json()
+    assert d["snapshot_verified"] is False
+    _sync(synced)  # re-sync must not backfill an unguaranteed origin
+    assert _raw("SELECT snapshot_sha256 FROM review_items WHERE id = ?", (i["id"],))[0][0] is None
+
+
+# ------------------------------------------------------------------ replay semantics
+def _item_state(item_id):
+    return (
+        _raw("SELECT status FROM review_items WHERE id = ?", (item_id,)),
+        _raw("SELECT COUNT(*) FROM review_events WHERE item_id = ?", (item_id,)),
+        _raw("SELECT COUNT(*) FROM review_corrections WHERE item_id = ?", (item_id,)),
+    )
+
+
+@pytest.mark.parametrize(
+    "first,second",
+    [
+        ({"reason": "a"}, {"reason": "b"}),
+        ({}, {"reason": "now with reason"}),
+        ({}, {"expected_status": "CORRECTED"}),
+        ({}, {"reviewer": "Someone"}),
+    ],
+)
+def test_replay_with_different_fields_conflicts_without_side_effects(synced, first, second):
+    i = _find(synced, "dq", "streams")
+    kw = {"client_request_id": "req-sem-0001"}
+    assert _decide(synced, i["id"], "ACCEPTED", **kw, **first).status_code == 200
+    before = _item_state(i["id"])
+    r = _decide(synced, i["id"], "ACCEPTED", **kw, **second)
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "request_id_conflict"
+    assert _item_state(i["id"]) == before
+
+
+def test_replay_with_different_correction_conflicts(synced):
+    i = _find(synced, "anomaly", "streams|iqr")
+    kw = {"client_request_id": "req-sem-0002"}
+
+    def corr(to):
+        return {"field": "impact", "to_value": to, "justification": "j"}
+
+    assert _decide(synced, i["id"], "CORRECTED", **kw, correction=corr("low")).status_code == 200
+    before = _item_state(i["id"])
+    r = _decide(synced, i["id"], "CORRECTED", **kw, correction=corr("medium"))
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "request_id_conflict"
+    assert _item_state(i["id"]) == before
+    same = _decide(synced, i["id"], "CORRECTED", **kw, correction=corr("low"))
+    assert same.status_code == 200 and same.json()["replayed"] is True
+    assert _item_state(i["id"]) == before
+
+
+def test_identical_replay_with_reason_is_replay(synced):
+    i = _find(synced, "dq", "streams")
+    kw = {"client_request_id": "req-sem-0003", "reason": "same"}
+    first = _decide(synced, i["id"], "REJECTED", **kw)
+    second = _decide(synced, i["id"], "REJECTED", **kw)
+    assert second.status_code == 200 and second.json()["replayed"] is True
+    assert second.json()["event"]["id"] == first.json()["event"]["id"]
+
+
+# ------------------------------------------------------------------ multi-dataset refs
+def test_same_column_in_two_sources_yields_distinct_items(root, client):
+    for src in ("a", "b"):
+        _write(root, f"dq_score_{src}.json", DQ_DOC)
+        _write(root, f"anomaly_report_v2_{src}.json", AN_DOC)
+    _complete_run("run-md")
+    names = [f"{p}{s}.json" for p in ("dq_score_", "anomaly_report_v2_") for s in ("a", "b")]
+    _register(root, "run-md", names=names)
+    assert _sync(client).status_code == 200
+    items = _items(client, limit=200)
+    refs = sorted(i["ref"] for i in items if i["kind"] == "dq")
+    assert refs == ["a::streams", "b::streams"]
+    arefs = sorted(i["ref"] for i in items if i["kind"] == "anomaly")
+    assert arefs == ["a::streams|iqr", "b::streams|iqr"]
+    assert _sync(client).json()["created"] == 0  # stable across re-sync
 
 
 # ------------------------------------------------------------------ errors / migration
