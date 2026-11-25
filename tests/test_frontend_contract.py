@@ -15,7 +15,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 # Frontend-only types that have no backend response model.
-FRONTEND_ONLY = {"MetricDefinition"}
+FRONTEND_ONLY = {"MetricDefinition", "ReviewListParams"}  # the latter is a query-string helper type
 
 
 def _fields(model: type[BaseModel]) -> set[str]:
@@ -53,8 +53,8 @@ def test_frontend_optional_fields_are_nullable_or_defaulted_in_the_backend() -> 
 def test_frontend_only_calls_endpoints_that_exist() -> None:
     openapi_paths = set(app.openapi()["paths"])
     client_paths = read_client_paths()
-    # 14 + /storage, /storage/policy, /storage/cleanup + /uploads/{upload_id}/interpretation
-    assert len(client_paths) == 18
+    # 14 + 3 storage + upload interpretation + 4 human review paths (items and decision share verbs per path)
+    assert len(client_paths) == 22
     missing = client_paths - openapi_paths
     assert not missing, f"frontend calls endpoints the API does not have: {sorted(missing)}"
 

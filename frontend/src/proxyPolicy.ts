@@ -41,6 +41,12 @@ export const ALLOWED_ROUTES: readonly Route[] = [
   { method: 'GET', pattern: new RegExp(`^/projects/${ID}/marts/${ID}$`) },
   { method: 'GET', pattern: new RegExp(`^/projects/${ID}/runs/${ID}$`) },
   { method: 'POST', pattern: new RegExp(`^/projects/${ID}/run$`), maxBodyBytes: MAX_BODY_BYTES },
+  // Human Review (v0.9). Numeric item ids only; decisions are short JSON documents.
+  { method: 'POST', pattern: /^\/review\/sync$/, maxBodyBytes: MAX_BODY_BYTES },
+  { method: 'GET', pattern: /^\/review\/items$/ },
+  { method: 'GET', pattern: /^\/review\/items\/\d+$/ },
+  { method: 'GET', pattern: /^\/review\/items\/\d+\/events$/ },
+  { method: 'POST', pattern: /^\/review\/items\/\d+\/decision$/, maxBodyBytes: MAX_BODY_BYTES },
 ];
 
 /** Request headers the browser must never be able to forward to the API. */

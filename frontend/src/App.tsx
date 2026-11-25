@@ -16,6 +16,7 @@ import { WorkspaceOverview } from './views/workspace/WorkspaceOverview';
 import { WorkspaceExplorer } from './views/workspace/WorkspaceExplorer';
 import { BrowserWorkspaceUnavailable } from './views/workspace/Unavailable';
 import { StorageView } from './views/StorageView';
+import { ReviewView } from './views/ReviewView';
 import { X, CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -135,6 +136,7 @@ const AppContent: React.FC = () => {
               <QualityView />
             ))}
           {activeTab === 'storage' && <StorageView />}
+          {activeTab === 'review' && mode === 'live' && <ReviewView />}
           {activeTab === 'lineage' &&
             (browserWorkspaceActive ? <BrowserWorkspaceUnavailable screen="Data Lineage DAG" /> : <LineageView />)}
         </main>

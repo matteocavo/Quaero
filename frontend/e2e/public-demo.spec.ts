@@ -81,6 +81,17 @@ test.describe('public demo on desktop', () => {
     expect(problems).toEqual([]);
   });
 
+  test('Human Review is not offered on the public site and no /review request is made', async ({
+    page,
+  }) => {
+    const { requests, problems } = watch(page);
+    await page.goto('./', { waitUntil: 'networkidle' });
+    for (const label of SCREENS) await openScreen(page, label, false);
+    await expect(page.locator('aside nav button', { hasText: 'Human Review' })).toHaveCount(0);
+    expect(requests.filter((url) => /\/(api\/)?review(\/|$)/.test(new URL(url).pathname))).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
   test('a CSV with awkward values is imported intact and exported as valid CSV', async ({ page }) => {
     await page.goto('./', { waitUntil: 'networkidle' });
     await openScreen(page, 'Import & Profile Data', false);

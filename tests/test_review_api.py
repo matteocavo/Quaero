@@ -687,6 +687,79 @@ def test_legacy_null_snapshot_hash_not_verified_nor_backfilled(synced):
     assert _raw("SELECT snapshot_sha256 FROM review_items WHERE id = ?", (i["id"],))[0][0] is None
 
 
+# ------------------------------------------------------------------ integrity gates decisions
+def _tamper_snapshot(item_id):
+    _raw("DROP TRIGGER review_items_immutable_identity")
+    _raw(
+        "UPDATE review_items SET original_json = ? WHERE id = ?",
+        (json.dumps({"column": "streams", "outlier_flag": False}), item_id),
+    )
+
+
+def _drop_provenance():
+    _raw("DROP TRIGGER IF EXISTS run_artifacts_no_delete")
+    _raw("DELETE FROM run_artifacts")
+
+
+def _snapshot(item_id):
+    return (
+        _raw("SELECT status FROM review_items WHERE id = ?", (item_id,)),
+        _raw("SELECT COUNT(*) FROM review_events WHERE item_id = ?", (item_id,)),
+    )
+
+
+def test_decision_blocked_on_tampered_snapshot(synced):
+    i = _find(synced, "dq", "streams")
+    _tamper_snapshot(i["id"])
+    before = _snapshot(i["id"])
+    r = _decide(synced, i["id"], "ACCEPTED")
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "snapshot_unverified"
+    assert _snapshot(i["id"]) == before
+
+
+def test_decision_blocked_on_legacy_null_snapshot(synced):
+    i = _find(synced, "dq", "streams")
+    _raw("DROP TRIGGER review_items_immutable_identity")
+    _raw("UPDATE review_items SET snapshot_sha256 = NULL WHERE id = ?", (i["id"],))
+    before = _snapshot(i["id"])
+    r = _decide(synced, i["id"], "REJECTED")
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "snapshot_unverified"
+    assert _snapshot(i["id"]) == before
+
+
+def test_decision_blocked_without_recorded_provenance(synced):
+    i = _find(synced, "dq", "streams")
+    _drop_provenance()
+    before = _snapshot(i["id"])
+    r = _decide(synced, i["id"], "ACCEPTED")
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "provenance_unverified"
+    assert _snapshot(i["id"]) == before
+
+
+def test_superseded_item_with_intact_integrity_stays_decidable(root, synced):
+    old = _find(synced, "dq", "streams")
+    _make_run(root, "run-2")
+    assert _sync(synced).json()["run_id"] == "run-2"
+    d = synced.get(f"/review/items/{old['id']}", headers=H).json()
+    assert d["superseded"] is True and d["snapshot_verified"] and d["artifact_provenance_verified"]
+    assert _decide(synced, old["id"], "ACCEPTED").status_code == 200
+
+
+def test_replay_of_applied_decision_survives_later_tampering(synced):
+    i = _find(synced, "dq", "streams")
+    first = _decide(synced, i["id"], "ACCEPTED")
+    assert first.status_code == 200
+    _tamper_snapshot(i["id"])
+    again = _decide(synced, i["id"], "ACCEPTED")
+    assert again.status_code == 200
+    assert first.json()["replayed"] is False
+    assert again.json()["replayed"] is True
+    assert _raw("SELECT COUNT(*) FROM review_events WHERE item_id = ?", (i["id"],))[0][0] == 1
+
+
 # ------------------------------------------------------------------ replay semantics
 def _item_state(item_id):
     return (

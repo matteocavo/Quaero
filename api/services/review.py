@@ -259,6 +259,18 @@ def decide(item_id: int, req: Any) -> tuple[dict[str, Any], dict[str, Any], bool
     item = store.get_review_item(item_id)
     if item is None:
         raise ReviewError(404, "not_found", "Review item not found.")
+    # Integrity, not history: superseded items stay decidable; tampered/legacy ones do not.
+    integrity_error = None
+    if not item["snapshot_verified"]:
+        integrity_error = (
+            "snapshot_unverified",
+            "The stored snapshot of this item failed its integrity check; decisions are blocked.",
+        )
+    elif not item["artifact_provenance_verified"]:
+        integrity_error = (
+            "provenance_unverified",
+            "The source artifact of this item is not recorded for its run; decisions are blocked.",
+        )
     correction_json = None
     if req.decision == "CORRECTED":
         field, domain = CORRECTABLE[item["kind"]]
@@ -288,6 +300,7 @@ def decide(item_id: int, req: Any) -> tuple[dict[str, Any], dict[str, Any], bool
             req.reason,
             req.client_request_id,
             correction_json,
+            integrity_error=integrity_error,
         )
     except store.ReviewNotFoundError as exc:
         raise ReviewError(404, "not_found", "Review item not found.") from exc

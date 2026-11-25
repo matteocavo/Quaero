@@ -242,3 +242,59 @@ describe('Local Operations (live) mode', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('Human Review endpoints', () => {
+  it('never touch the network in Public Demo mode', async () => {
+    const demo = new QuaeroApiClient('demo');
+    const calls = [
+      () => demo.syncReview('p'),
+      () => demo.listReviewItems({ project: 'p' }),
+      () => demo.getReviewItem(1),
+      () => demo.getReviewEvents(1),
+      () =>
+        demo.decideReviewItem(1, {
+          decision: 'ACCEPTED',
+          reviewer: 'Ada',
+          expected_status: 'REVIEW_REQUIRED',
+          client_request_id: 'req-12345678',
+        }),
+    ];
+    for (const call of calls) {
+      await expect(call()).rejects.toMatchObject({ statusCode: 403 });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('builds the list query and posts sync/decision as JSON', async () => {
+    const live = new QuaeroApiClient('live');
+    fetchMock.mockImplementation(() => json({ items: [], total: 0, limit: 10, offset: 20 }));
+    await live.listReviewItems({ project: 'a b', status: 'ACCEPTED', kind: 'dq', superseded: false, limit: 10, offset: 20 });
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('/review/items?');
+    const q = new URL(url, 'http://x').searchParams;
+    expect(q.get('project')).toBe('a b');
+    expect(q.get('status')).toBe('ACCEPTED');
+    expect(q.get('kind')).toBe('dq');
+    expect(q.get('superseded')).toBe('false');
+    expect(q.get('limit')).toBe('10');
+    expect(q.get('offset')).toBe('20');
+
+    fetchMock.mockImplementation(() => json({ project: 'p', run_id: '1', created: 0, existing: 0, active_rules: 0 }));
+    await live.syncReview('p');
+    const init = fetchMock.mock.calls[1][1] as RequestInit;
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({ project: 'p' });
+    expect(JSON.stringify(init.headers ?? {}).toLowerCase()).not.toContain('x-api-key');
+  });
+
+  it('keeps the structured error code from the server', async () => {
+    const live = new QuaeroApiClient('live');
+    fetchMock.mockImplementation(() =>
+      json({ detail: { code: 'stale_status', message: 'Status changed' } }, 409),
+    );
+    const err = await live.getReviewItem(3).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.statusCode).toBe(409);
+    expect(err.code).toBe('stale_status');
+  });
+});
