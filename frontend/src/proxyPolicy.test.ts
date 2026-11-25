@@ -40,6 +40,24 @@ describe('proxy allowlist', () => {
     expect(allowed('POST', '/api/uploads/upload_a1b2c3d4e5f6/interpretation', '300')).toBe(true);
   });
 
+  it('exposes exactly the five Human Review endpoints with the right verbs', () => {
+    expect(allowed('GET', '/api/review/items?project=p&status=REVIEW_REQUIRED&limit=50&offset=0')).toBe(true);
+    expect(allowed('GET', '/api/review/items/12')).toBe(true);
+    expect(allowed('GET', '/api/review/items/12/events')).toBe(true);
+    expect(allowed('POST', '/api/review/sync', '60')).toBe(true);
+    expect(allowed('POST', '/api/review/items/12/decision', '300')).toBe(true);
+    // wrong verbs, non-numeric ids, unknown sub-paths, oversized bodies
+    expect(allowed('GET', '/api/review/sync')).toBe(false);
+    expect(allowed('POST', '/api/review/items', '10')).toBe(false);
+    expect(allowed('DELETE', '/api/review/items/12')).toBe(false);
+    expect(allowed('GET', '/api/review/items/12/decision')).toBe(false);
+    expect(allowed('GET', '/api/review/items/abc')).toBe(false);
+    expect(allowed('GET', '/api/review/items/12/../1')).toBe(false);
+    expect(allowed('GET', '/api/review/other')).toBe(false);
+    expect(allowed('POST', '/api/review/items/12/decision', String(MAX_BODY_BYTES + 1))).toBe(false);
+    expect(allowed('POST', '/api/review/sync')).toBe(false);
+  });
+
   it('keeps the interpretation endpoint to POST with a small body and a plain upload id', () => {
     const url = '/api/uploads/upload_a1b2c3d4e5f6/interpretation';
     expect(allowed('GET', url)).toBe(false);
@@ -64,7 +82,7 @@ describe('proxy allowlist', () => {
   });
 
   it('only exposes endpoints the frontend uses', () => {
-    expect(ALLOWED_ROUTES).toHaveLength(13);
+    expect(ALLOWED_ROUTES).toHaveLength(18);
   });
 
   it.each([

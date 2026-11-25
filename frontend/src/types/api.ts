@@ -389,4 +389,93 @@ export type NavigationTab =
   | 'marts'
   | 'quality'
   | 'lineage'
-  | 'storage';
+  | 'storage'
+  | 'review';
+
+// ---------------------------------------------------------------------------
+// Human Review (Local Operations only)
+// ---------------------------------------------------------------------------
+
+export type ReviewStatus = 'REVIEW_REQUIRED' | 'ACCEPTED' | 'CORRECTED' | 'REJECTED';
+export type ReviewDecision = 'ACCEPTED' | 'CORRECTED' | 'REJECTED';
+export type ReviewKind = 'anomaly' | 'dq';
+
+export interface ReviewItem {
+  id: number;
+  project: string;
+  run_id: string;
+  kind: ReviewKind;
+  ref: string;
+  rule_id: string;
+  status: ReviewStatus;
+  superseded: boolean;
+  snapshot_verified: boolean;
+  artifact_provenance_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReviewCorrection {
+  field: string;
+  from_value: unknown;
+  to_value: unknown;
+  justification?: string | null;
+}
+
+export interface ReviewItemDetail extends ReviewItem {
+  original: Record<string, unknown>;
+  effective: Record<string, unknown>;
+  correction: ReviewCorrection | null;
+  artifact_sha256: string;
+}
+
+export interface ReviewEvent {
+  id: number;
+  item_id: number;
+  from_status: ReviewStatus;
+  to_status: ReviewStatus;
+  reviewer: string;
+  reviewer_source: string;
+  reason?: string | null;
+  at: string;
+}
+
+export interface ReviewItemList {
+  items: ReviewItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ReviewSyncResponse {
+  project: string;
+  run_id: string;
+  created: number;
+  existing: number;
+  active_rules: string[];
+}
+
+export interface ReviewListParams {
+  project: string;
+  status?: ReviewStatus;
+  kind?: ReviewKind;
+  run_id?: string;
+  superseded?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ReviewDecisionRequest {
+  decision: ReviewDecision;
+  reviewer: string;
+  reason?: string;
+  correction?: { field: string; to_value: unknown; justification?: string };
+  expected_status: 'REVIEW_REQUIRED' | 'CORRECTED';
+  client_request_id: string;
+}
+
+export interface ReviewDecisionResponse {
+  item: ReviewItemDetail;
+  event: ReviewEvent;
+  replayed: boolean;
+}

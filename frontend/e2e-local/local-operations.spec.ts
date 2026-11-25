@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
@@ -49,6 +49,8 @@ test.describe('Local Operations full-stack E2E (FastAPI + Python pipeline + Reac
 
   test.beforeAll(async () => {
     tempWorkspace = mkdtempSync(join(tmpdir(), 'quaero-local-e2e-'));
+    // The review rules file is user-owned config read from the project root; give the temp workspace a copy.
+    copyFileSync(join(REPO_ROOT, 'review_rules.json'), join(tempWorkspace, 'review_rules.json'));
     const env = {
       ...process.env,
       QUAERO_API_KEY: sessionKey,
@@ -179,6 +181,30 @@ test.describe('Local Operations full-stack E2E (FastAPI + Python pipeline + Reac
     // 8. View Data Lineage DAG
     await page.locator('aside nav button', { hasText: 'Data Lineage DAG' }).click();
     await expect(page.locator('main')).toContainText('mart_question_answer');
+
+    // 9. Human Review: nothing is synced on open; an explicit sync creates items; a decision is recorded
+    const reviewRequests: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/review/')) reviewRequests.push(`${r.method()} ${new URL(r.url()).pathname}`);
+    });
+    await page.locator('aside nav button', { hasText: 'Human Review' }).click();
+    await expect(page.getByRole('heading', { name: /Human Review/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Sync Review/i })).toBeVisible();
+    expect(reviewRequests.some((r) => r.startsWith('POST') && r.endsWith('/review/sync'))).toBe(false);
+    await page.getByRole('button', { name: /Sync Review/i }).click();
+    await expect
+      .poll(() => reviewRequests.filter((r) => r.endsWith('/review/sync')).length)
+      .toBeGreaterThan(0);
+    await expect(page.getByRole('button', { name: /Sync Review/i })).toBeEnabled({ timeout: 60_000 });
+    // The proxy must expose /review/* and the real backend must answer: a sync summary, no proxy error.
+    const main = page.locator('main');
+    await expect(main).toContainText(/Synced external_logistics_2025, run [0-9a-f-]+: \d+ created, \d+ already existing/);
+    await expect(main).toContainText('Active rules: R1');
+    await expect(main).not.toContainText('not exposed by the proxy');
+    await expect(main).not.toContainText('rules_config_invalid');
+    // This small CSV has no high-impact anomaly, so the queue is honestly empty (no fake items).
+    await expect(main).toContainText('No review items yet.');
+    expect(reviewRequests).toContain('GET /api/review/items');
   });
 
   test('a question the pipeline cannot answer is explained and cannot be run; an explicit sum is honoured', async ({

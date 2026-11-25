@@ -14,6 +14,7 @@ import {
   ExternalLink,
   BarChart3,
   HardDrive,
+  ClipboardCheck,
 } from 'lucide-react';
 import { ProjectSelect } from './ProjectSelect';
 import { useApp } from '../context/AppContext';
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'quality', label: 'Quality & Anomalies', icon: ShieldAlert },
   { id: 'lineage', label: 'Data Lineage DAG', icon: GitFork },
   { id: 'storage', label: 'Local Storage', icon: HardDrive, liveOnly: true },
+  { id: 'review', label: 'Human Review', icon: ClipboardCheck, liveOnly: true },
 ];
 
 export const Sidebar: React.FC = () => {
