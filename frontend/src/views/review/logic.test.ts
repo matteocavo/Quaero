@@ -7,7 +7,9 @@ import {
   buildRequest,
   describeError,
   formatWhen,
+  integrityBlock,
   isTerminal,
+  isValidRunId,
   newRequestId,
   reasonRequired,
   show,
@@ -19,7 +21,7 @@ function item(over: Partial<ReviewItemDetail> = {}): ReviewItemDetail {
   return {
     id: 1,
     project: 'p',
-    run_id: 3,
+    run_id: '3f2b8c1e-9a4d-4e7b-8c55-0d1f2a3b4c5d',
     kind: 'anomaly',
     ref: 'amount|iqr',
     rule_id: 'R1',
@@ -104,6 +106,37 @@ describe('validateDraft', () => {
     const dq = item({ kind: 'dq', original: { outlier_flag: true }, effective: { outlier_flag: true } });
     expect(validateDraft(dq, draft({ decision: 'CORRECTED', reason: 'r', toValue: true }))).toMatch(/equals/);
     expect(validateDraft(dq, draft({ decision: 'CORRECTED', reason: 'r', toValue: false }))).toBeNull();
+  });
+});
+
+describe('isValidRunId', () => {
+  it('accepts server-generated UUIDs and textual ids', () => {
+    expect(isValidRunId('3f2b8c1e-9a4d-4e7b-8c55-0d1f2a3b4c5d')).toBe(true);
+    expect(isValidRunId('run-abc_1')).toBe(true);
+    expect(isValidRunId('42')).toBe(true);
+    expect(isValidRunId('a'.repeat(64))).toBe(true);
+  });
+  it('rejects empty, unsafe and over-long ids', () => {
+    for (const bad of ['', 'a b', 'a/b', '..', 'a.b', 'a?b', 'a'.repeat(65)]) {
+      expect(isValidRunId(bad)).toBe(false);
+    }
+  });
+});
+
+describe('integrity guard', () => {
+  it('blocks decisions on an unverified snapshot or provenance', () => {
+    expect(integrityBlock(item({ snapshot_verified: false }))).toMatch(/snapshot/);
+    expect(integrityBlock(item({ artifact_provenance_verified: false }))).toMatch(/source artifact/);
+    expect(validateDraft(item({ snapshot_verified: false }), draft())).toMatch(/snapshot/);
+    expect(validateDraft(item({ artifact_provenance_verified: false }), draft())).toMatch(/source artifact/);
+  });
+  it('does not block a superseded item whose integrity is intact', () => {
+    expect(integrityBlock(item({ superseded: true }))).toBeNull();
+    expect(validateDraft(item({ superseded: true }), draft())).toBeNull();
+  });
+  it('explains the server integrity codes', () => {
+    expect(describeError(new ApiError('x', 409, false, false, false, 'snapshot_unverified')).explanation).toMatch(/integrity/);
+    expect(describeError(new ApiError('x', 409, false, false, false, 'provenance_unverified')).explanation).toMatch(/not recorded/);
   });
 });
 

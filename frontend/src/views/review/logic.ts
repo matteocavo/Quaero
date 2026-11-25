@@ -58,7 +58,21 @@ const ERROR_EXPLANATIONS: Record<string, string> = {
   request_id_conflict: 'This request identifier was already used for a different decision. Nothing was changed.',
   invalid_correction: 'The correction was rejected: only the permitted field can change, to a different permitted value.',
   not_found: 'The review item no longer exists.',
+  snapshot_unverified: 'The stored snapshot of this item failed its integrity check, so decisions are blocked.',
+  provenance_unverified: 'The source artifact of this item is not recorded for its run, so decisions are blocked.',
 };
+
+/** Run ids are server-generated text (UUIDs). Same character set as the API path ids; never numeric-only. */
+export function isValidRunId(value: string): boolean {
+  return /^[A-Za-z0-9_-]{1,64}$/.test(value);
+}
+
+/** Why decisions are blocked for integrity reasons, or null when the item is intact. Superseded is NOT a reason. */
+export function integrityBlock(item: Pick<ReviewItemDetail, 'snapshot_verified' | 'artifact_provenance_verified'>): string | null {
+  if (!item.snapshot_verified) return 'Decisions are blocked: the stored snapshot failed its integrity check.';
+  if (!item.artifact_provenance_verified) return 'Decisions are blocked: the source artifact is not recorded for this run.';
+  return null;
+}
 
 export interface DescribedError {
   code: string | null;
@@ -110,6 +124,8 @@ export interface DecisionDraft {
 }
 
 export function validateDraft(item: ReviewItemDetail, d: DecisionDraft): string | null {
+  const blocked = integrityBlock(item);
+  if (blocked) return blocked;
   if (!ALLOWED_DECISIONS[item.status].includes(d.decision)) return 'This decision is not allowed from the current status.';
   const reviewer = d.reviewer.trim();
   if (!reviewer) return 'Enter the reviewer name.';

@@ -815,8 +815,12 @@ def apply_review_decision(
     client_request_id: str,
     correction_json: str | None = None,
     db_path: Path | None = None,
+    integrity_error: tuple[str, str] | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """Atomically apply one decision. Returns (event, replayed).
+
+    ``integrity_error`` = (code, message) refuses NEW decisions on an item whose snapshot or
+    provenance is not verified; an idempotent replay of an already-applied one is still served.
 
     One BEGIN IMMEDIATE transaction: idempotent replay check, expected-status check, transition
     table, conditional UPDATE (rowcount-checked), event (+ correction) INSERT.
@@ -845,6 +849,8 @@ def apply_review_decision(
                     )
                 conn.execute("COMMIT")
                 return dict(prior), True
+            if integrity_error is not None:
+                raise ReviewConflictError(*integrity_error)
             current = item["status"]
             if current != expected_status:
                 raise ReviewConflictError(

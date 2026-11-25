@@ -5,7 +5,7 @@ import type { ReviewItem, ReviewKind, ReviewStatus, ReviewSyncResponse } from '.
 import { Card, Notice, inputClass, primaryButton, secondaryButton } from './analysis/ui';
 import { ItemDetail } from './review/ItemDetail';
 import { StatusBadge } from './review/StatusBadge';
-import { KIND_LABEL, RULE_LABEL, describeError, type DescribedError } from './review/logic';
+import { KIND_LABEL, RULE_LABEL, describeError, isValidRunId, type DescribedError } from './review/logic';
 
 const PAGE_SIZE = 20;
 const STATUSES: ReviewStatus[] = ['REVIEW_REQUIRED', 'CORRECTED', 'ACCEPTED', 'REJECTED'];
@@ -57,8 +57,8 @@ export function ReviewView() {
   const loadSeq = useRef(0);
 
   const projectNames = Array.from(new Set([project, ...projects.map((p) => p.project)].filter(Boolean)));
-  const runNumber = runId.trim() === '' ? undefined : Number(runId);
-  const runInvalid = runNumber !== undefined && (!Number.isInteger(runNumber) || runNumber < 1);
+  const runFilter = runId.trim() === '' ? undefined : runId.trim();
+  const runInvalid = runFilter !== undefined && !isValidRunId(runFilter);
 
   const load = useCallback(async () => {
     if (!project || runInvalid) return;
@@ -70,7 +70,7 @@ export function ReviewView() {
         project,
         status: status || undefined,
         kind: kind || undefined,
-        run_id: runNumber === undefined ? undefined : String(runNumber),
+        run_id: runFilter,
         superseded: superseded === '' ? undefined : superseded === 'true',
         limit: PAGE_SIZE,
         offset,
@@ -86,7 +86,7 @@ export function ReviewView() {
     } finally {
       if (seq === loadSeq.current) setLoading(false);
     }
-  }, [apiClient, project, status, kind, runNumber, runInvalid, superseded, offset]);
+  }, [apiClient, project, status, kind, runFilter, runInvalid, superseded, offset]);
 
   useEffect(() => {
     void load();
@@ -211,8 +211,8 @@ export function ReviewView() {
           <label className="text-sm">
             <span className="mb-1 block font-medium">Run</span>
             <input
-              className={`${inputClass} w-24`}
-              inputMode="numeric"
+              className={`${inputClass} w-72 max-w-full`}
+              spellCheck={false}
               value={runId}
               aria-invalid={runInvalid}
               onChange={(e) => {
@@ -242,7 +242,7 @@ export function ReviewView() {
           </button>
         </div>
 
-        {runInvalid && <Notice tone="warning">Run must be a positive whole number.</Notice>}
+        {runInvalid && <Notice tone="warning">Run id may contain only letters, digits, "-" and "_" (up to 64 characters).</Notice>}
         {listError && (
           <div className="space-y-2">
             <ErrorBox err={listError} />

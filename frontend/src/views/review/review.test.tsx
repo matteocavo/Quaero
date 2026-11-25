@@ -7,7 +7,7 @@ const res = (body: Json, status = 200) => new Response(JSON.stringify(body), { s
 
 const baseItem = {
   project: 'release_impact',
-  run_id: '3',
+  run_id: '3f2b8c1e-9a4d-4e7b-8c55-0d1f2a3b4c5d',
   kind: 'anomaly',
   ref: 'amount|iqr',
   rule_id: 'R1',
@@ -49,7 +49,7 @@ function install(store: Store) {
     if (url === '/api/review/sync') {
       return store.syncResponse
         ? store.syncResponse()
-        : res({ project: 'release_impact', run_id: 3, created: 2, existing: 0, active_rules: ['R1', 'R2'] });
+        : res({ project: 'release_impact', run_id: '3f2b8c1e-9a4d-4e7b-8c55-0d1f2a3b4c5d', created: 2, existing: 0, active_rules: ['R1', 'R2'] });
     }
     const dec = url.match(/^\/api\/review\/items\/(\d+)\/decision$/);
     if (dec && method === 'POST') {
@@ -157,7 +157,7 @@ describe('Human Review UI', () => {
     await openReview();
     fireEvent.click(screen.getByRole('button', { name: 'Sync Review' }));
     const out = await screen.findByTestId('sync-result');
-    expect(out.textContent).toMatch(/run 3/);
+    expect(out.textContent).toMatch(/run 3f2b8c1e-9a4d/);
     expect(out.textContent).toMatch(/2 created/);
     expect(s.calls.filter((c) => c.url === '/api/review/sync').length).toBe(1);
     expect(s.calls.find((c) => c.url === '/api/review/sync')!.body).toEqual({ project: 'release_impact' });
@@ -326,6 +326,58 @@ describe('Human Review UI', () => {
     const root = document.documentElement;
     expect(root.classList.contains('dark') || !root.classList.contains('dark')).toBe(true);
     expect(screen.getByTestId('review-view').className).not.toMatch(/undefined/);
+  });
+
+  it('sends a UUID or non-numeric run filter as text, unchanged', async () => {
+    const s = makeStore();
+    install(s);
+    render(<App />);
+    await openReview();
+    await screen.findAllByTestId('review-row');
+    const uuid = '3f2b8c1e-9a4d-4e7b-8c55-0d1f2a3b4c5d';
+    fireEvent.change(screen.getByLabelText('Run'), { target: { value: uuid } });
+    await waitFor(() => expect(reviewCalls(s).some((c) => c.url.includes(`run_id=${uuid}`))).toBe(true));
+    fireEvent.change(screen.getByLabelText('Run'), { target: { value: 'run-abc_1' } });
+    await waitFor(() => expect(reviewCalls(s).some((c) => c.url.includes('run_id=run-abc_1'))).toBe(true));
+    expect(screen.queryByText(/Run id may contain only/)).toBeNull();
+  });
+
+  it('warns about an unsafe run id and does not send it', async () => {
+    const s = makeStore();
+    install(s);
+    render(<App />);
+    await openReview();
+    await screen.findAllByTestId('review-row');
+    fireEvent.change(screen.getByLabelText('Run'), { target: { value: 'a/b' } });
+    expect(await screen.findByText(/Run id may contain only/)).toBeTruthy();
+    expect(reviewCalls(s).some((c) => c.url.includes('run_id='))).toBe(false);
+  });
+
+  it.each([
+    ['snapshot_verified', /snapshot/],
+    ['artifact_provenance_verified', /source artifact/],
+  ] as const)('blocks every decision when %s is false', async (flag, text) => {
+    const s = makeStore();
+    s.items[0][flag] = false;
+    install(s);
+    render(<App />);
+    await openReview();
+    const d = await openItem();
+    expect(within(d).getByTestId('integrity-block').textContent).toMatch(text);
+    for (const n of ['Accept', 'Correct', 'Reject']) {
+      expect((within(d).getByRole('button', { name: n }) as HTMLButtonElement).disabled).toBe(true);
+    }
+  });
+
+  it('keeps a superseded item with intact integrity decidable', async () => {
+    const s = makeStore();
+    s.items[0].superseded = true;
+    install(s);
+    render(<App />);
+    await openReview();
+    const d = await openItem();
+    expect(within(d).queryByTestId('integrity-block')).toBeNull();
+    expect((within(d).getByRole('button', { name: 'Accept' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('never calls review endpoints other than the documented ones', async () => {

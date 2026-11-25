@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -22,6 +22,24 @@ const EXTERNAL_CSV_CONTENT = [
   '2024,NordicCargo,EU_North,68,20500.00',
   '2024,AtlasFreight,EU_East,310,195000.00',
 ].join('\n');
+
+const REVIEW_CSV_NAME = 'review_orders_synthetic.csv';
+// Synthetic data: 4 of 24 rows (16.7%) are extreme amounts, so the real pipeline reports a high-impact anomaly (R1).
+const REVIEW_CSV_CONTENT = [
+  'order_id,region,amount',
+  ...Array.from({ length: 40 }, (_, i) => {
+    const amount = i < 37 ? 100 + (i % 5) * 3 : 9000 + i * 100;
+    return `${i + 1},${['North', 'South', 'East'][i % 3]},${amount}`;
+  }),
+].join('\n');
+
+/** Read-only query against the isolated e2e SQLite DB through the project's Python (stdlib sqlite3). */
+function queryDb(dbPath: string, sql: string): unknown[][] {
+  const code =
+    'import sqlite3,sys,json;c=sqlite3.connect("file:"+sys.argv[1]+"?mode=ro",uri=True);' +
+    'print(json.dumps(c.execute(sys.argv[2]).fetchall()))';
+  return JSON.parse(execFileSync(PYTHON_EXE, ['-c', code, dbPath, sql], { encoding: 'utf8' }));
+}
 
 async function waitForHttp(url: string, timeoutMs = 20_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -205,6 +223,81 @@ test.describe('Local Operations full-stack E2E (FastAPI + Python pipeline + Reac
     // This small CSV has no high-impact anomaly, so the queue is honestly empty (no fake items).
     await expect(main).toContainText('No review items yet.');
     expect(reviewRequests).toContain('GET /api/review/items');
+  });
+
+  test('human review end to end: real pipeline item, sync, reject, persisted event, history survives a reload', async ({
+    page,
+  }) => {
+    await page.goto(`http://127.0.0.1:${webPort}/`, { waitUntil: 'networkidle' });
+    await page.getByTitle('Configure environment connection').click();
+    await page.getByRole('button', { name: /Local Operations/i }).click();
+    await expect(page.getByText(/Connected to local FastAPI backend/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Done' }).click();
+    await page.locator('aside nav button', { hasText: 'Import & Profile Data' }).click();
+    await page.getByTestId('local-csv-upload-input').setInputFiles({
+      name: REVIEW_CSV_NAME,
+      mimeType: 'text/csv',
+      buffer: Buffer.from(REVIEW_CSV_CONTENT, 'utf-8'),
+    });
+    await expect(page.getByTestId('upload-metadata-card')).toBeVisible();
+    await page.getByTestId('local-project-question-input').fill('Which region has the highest average amount?');
+    await page.getByTestId('local-metric-select').selectOption('amount');
+    await page.getByTestId('local-dimension-select').selectOption('region');
+    await page.getByTestId('check-interpretation-btn').click();
+    await expect(page.getByTestId('interpretation-panel')).toContainText(/average/i);
+    await page.getByTestId('create-and-run-btn').click();
+    await expect(page.getByTestId('local-results-panel')).toBeVisible({ timeout: 25_000 });
+
+    // Sync: items come from the real anomaly report, never inserted by the test
+    await page.locator('aside nav button', { hasText: 'Human Review' }).click();
+    await page.getByRole('button', { name: /Sync Review/i }).click();
+    const main = page.locator('main');
+    await expect(main).toContainText(/Synced review_orders_synthetic, run [0-9a-f-]+: [1-9]\d* created/, {
+      timeout: 60_000,
+    });
+    const rows = page.getByTestId('review-row');
+    await expect(rows.first()).toBeVisible();
+    await expect(rows.first()).toContainText('Review required');
+
+    // Detail, then reject with a reviewer and a reason
+    await rows.first().click();
+    const detail = page.getByTestId('review-detail');
+    await expect(detail).toBeVisible();
+    await expect(page.getByTestId('integrity-block')).toHaveCount(0);
+    await detail.getByRole('button', { name: /^Reject$/ }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.locator('#rv-reviewer').fill('E2E Reviewer');
+    await dialog.locator('#rv-reason').fill('Synthetic outliers are expected in this test');
+    await dialog.getByRole('button', { name: 'Confirm decision' }).click();
+    await expect(dialog).toBeHidden({ timeout: 15_000 });
+    await expect(rows.first()).toContainText('Rejected', { timeout: 15_000 });
+    await expect(page.getByTestId('review-event').first()).toContainText('E2E Reviewer');
+
+    // The event is persisted in the isolated SQLite DB
+    const dbPath = join(tempWorkspace, 'e2e_quaero.db');
+    const events = queryDb(
+      dbPath,
+      "SELECT from_status,to_status,reviewer,reason FROM review_events ORDER BY id",
+    );
+    expect(events).toEqual([
+      ['REVIEW_REQUIRED', 'REJECTED', 'E2E Reviewer', 'Synthetic outliers are expected in this test'],
+    ]);
+    expect(queryDb(dbPath, "SELECT status FROM review_items WHERE status='REJECTED'").length).toBe(1);
+
+    // A reload keeps the decision and its history
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByTitle('Configure environment connection').click();
+    await page.getByRole('button', { name: /Local Operations/i }).click();
+    await expect(page.getByText(/Connected to local FastAPI backend/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Done' }).click();
+    await page.locator('aside nav button', { hasText: 'Human Review' }).click();
+    // After a reload the default project may differ (the workspace is shared across tests): pick ours.
+    await page.locator('label:has(span:text-is("Project")) select').selectOption('review_orders_synthetic');
+    await expect(page.getByTestId('review-row').first()).toContainText('Rejected', { timeout: 15_000 });
+    await page.getByTestId('review-row').first().click();
+    await expect(page.getByTestId('review-event').first()).toContainText('E2E Reviewer');
+    await expect(page.getByTestId('review-event').first()).toContainText('Synthetic outliers are expected');
   });
 
   test('a question the pipeline cannot answer is explained and cannot be run; an explicit sum is honoured', async ({

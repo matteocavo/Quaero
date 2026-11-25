@@ -16,6 +16,7 @@ import {
   isTerminal,
   reasonRequired,
   show,
+  integrityBlock,
   validateDraft,
   type DescribedError,
 } from './logic';
@@ -116,6 +117,7 @@ export function ItemDetail({ itemId, onChanged }: Props) {
   if (!item) return null;
 
   const allowed = ALLOWED_DECISIONS[item.status];
+  const blocked = integrityBlock(item);
 
   return (
     <div className="space-y-4" data-testid="review-detail">
@@ -212,12 +214,17 @@ export function ItemDetail({ itemId, onChanged }: Props) {
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
+            {blocked && (
+              <p className="w-full text-xs font-semibold text-red-700 dark:text-red-300" role="alert" data-testid="integrity-block">
+                {blocked}
+              </p>
+            )}
             {(['ACCEPTED', 'CORRECTED', 'REJECTED'] as ReviewDecision[]).map((d) => (
               <button
                 key={d}
                 type="button"
-                disabled={!allowed.includes(d)}
-                title={allowed.includes(d) ? undefined : 'Not allowed from the current status'}
+                disabled={!!blocked || !allowed.includes(d)}
+                title={blocked ?? (allowed.includes(d) ? undefined : 'Not allowed from the current status')}
                 className={d === 'ACCEPTED' ? primaryButton : secondaryButton}
                 onClick={() => setDecision(d)}
               >
