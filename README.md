@@ -29,6 +29,25 @@ source to mart table, every transformation is logged and every column is scored.
 
 Dataset → Question → Analytical Marts → Dashboard
 
+## What's new in v0.9.0
+
+v0.9.0 - *Human Review* - adds an auditable review workflow to Local Operations. The public GitHub Pages
+demo is unchanged: 100% browser-only, with no Human Review and no `/review/*` requests. See
+[CHANGELOG.md](CHANGELOG.md) and [api/README.md](api/README.md).
+
+- **Human Review** (Local Operations only): rules R1 (high-impact anomaly) and R3 (data-quality outlier flag)
+  produce review items through an explicit sync; a reviewer accepts, corrects or rejects each item. Events are
+  append-only and the original value is never overwritten
+- **Provenance and integrity**: runs and artifacts carry SHA-256 fingerprints; `snapshot_verified` and
+  `artifact_provenance_verified` are reported separately, and unverified items cannot be decided
+- **Requirements**: no new dependencies. Same Python and Node versions as v0.8.0; Windows launcher
+  `Start-Quaero.bat` / `scripts/start-local.ps1`
+- **Database compatibility**: SQLite schema v3, migrated automatically from v1 or v2 on first start. The
+  migration is one-way: back up `quaero.db` before upgrading if you may return to v0.8.0
+- **Known limitations**: the reviewer name is declared, not authenticated; R2 and R4 are disabled; runs made
+  before v0.9.0 cannot be reviewed (no backfill); after a CORRECTED item is ACCEPTED or REJECTED the correction
+  overlay no longer applies (history is kept)
+
 ## What's new in v0.8.0
 
 v0.8.0 - *Local Operations & Web App* - completes the local React + FastAPI + Python pipeline
