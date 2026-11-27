@@ -20,7 +20,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  QUAERO v0.8.0 - LOCAL OPERATIONS LAUNCHER (Loopback Only) " -ForegroundColor Cyan
+Write-Host "  QUAERO v0.9.0 - LOCAL OPERATIONS LAUNCHER (Loopback Only) " -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
 # 1. Resolve Python interpreter

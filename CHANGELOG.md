@@ -7,6 +7,40 @@ documented in their [GitHub Release notes](https://github.com/matteocavo/Quaero/
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-27 - Human Review
+
+Human Review for Local Operations. Anomaly and data-quality findings that need a person's judgement can be
+reviewed, corrected, accepted or rejected, with an append-only audit trail. The public GitHub Pages demo stays
+100% browser-only and does not offer Human Review.
+
+### Added
+- **Persistence and provenance foundation**: pipeline runs and the artifacts they report producing are recorded in
+  SQLite, each with a SHA-256 fingerprint; an artifact is only attributed to a run if the run reports producing it.
+- **Human Review API** (`/review/sync`, `/review/items`, `/review/items/{id}`, `/review/items/{id}/decision`,
+  `/review/items/{id}/events`): an explicit, idempotent sync turns findings of the rules R1 (high-impact anomaly)
+  and R3 (data-quality outlier flag) into review items; decisions are ACCEPTED, CORRECTED (with a correction
+  overlay; the original is never changed) or REJECTED. Decisions are idempotent by `client_request_id`,
+  guarded against stale status and concurrent writers, and refused on terminal items.
+- **Integrity checks**: each item stores a `snapshot_sha256`; `snapshot_verified` and
+  `artifact_provenance_verified` are reported separately, and a decision is refused (409) when either is not
+  verified. Items from before the fingerprint existed stay unverified and are not backfilled.
+- **Human Review UI** in Local Operations: Review Queue, item detail with original and effective values, decision
+  dialog and history. Not shown in the Public Demo.
+- Review items are an audit trail only: nothing is written back to pipeline artifacts.
+
+### Changed
+- SQLite schema version 3 (`review_items`, `review_events`, `review_corrections`, `snapshot_sha256`, immutability
+  triggers). The migration from v1 or v2 is automatic on first start and preserves existing runs, artifacts and
+  reviews. It is one-way: back up `quaero.db` before upgrading if you may want to return to v0.8.0.
+- The Windows launcher banner reports v0.9.0.
+
+### Known limitations
+- The reviewer name is declared by the person, not authenticated (`reviewer_source` is always `declared`).
+- Rules R2 and R4 are disabled; only R1 and R3 produce items.
+- A SHA-256 fingerprint shows that an artifact is unchanged since the run, not who produced it.
+- Only runs made with v0.9.0 or later can be reviewed; earlier runs are refused without backfill.
+- After a CORRECTED item is ACCEPTED or REJECTED, the correction overlay no longer applies (the history is kept).
+
 ## [0.8.0] - 2026-10-28 - Local Operations & Web App
 
 Local Operations & Web App. The local React + FastAPI + Python pipeline is complete; the public GitHub Pages
